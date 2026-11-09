@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+# derived feature and label-factor caches, rebuilt from the data
+cache/
+# trained models and per-query predictions
+runs/

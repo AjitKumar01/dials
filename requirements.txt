@@ -1,0 +1,5 @@
+# Versions the reported runs used (Python 3.13.4)
+numpy==2.5.4
+scipy==1.18.1
+scikit-learn==1.7.2
+torch==2.9.1
