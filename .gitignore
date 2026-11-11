@@ -6,3 +6,8 @@ __pycache__/
 cache/
 # trained models and per-query predictions
 runs/
+# runs trained on the earlier feature set, kept for reference
+runs_v1_features/
+# LaTeX build files
+*.aux
+*.log

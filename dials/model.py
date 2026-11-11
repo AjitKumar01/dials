@@ -134,8 +134,15 @@ class DIALS(nn.Module):
         z=self.content() if z is None else z
         return z@self.key_content.T+self.history()@self.key_history.T
 
-    def content_scores(self,seeds,bundles,keys):
-        z=self.content();k=self.keys(z) if keys is None else keys;h=self.history();phi=[];fixes=[]
+    def cache(self):
+        """The query-independent parts of evaluation scores, computed once per evaluation instead of once per batch."""
+        z=self.content();h=self.history()
+        return dict(content=z,history=h,keys=z@self.key_content.T+h@self.key_history.T,prior=self.prior(self.frequency.log1p()[:,None]).squeeze(1))
+
+    def content_scores(self,seeds,bundles,cache=None):
+        if cache is None:z=self.content();k=self.keys(z);h=self.history()
+        else:z,k,h=cache['content'],cache['keys'],cache['history']
+        phi=[];fixes=[]
         for i,s in enumerate(seeds):
             hs=h[s]
             if bundles is not None:
@@ -170,7 +177,7 @@ class DIALS(nn.Module):
         return out
 
     # ---- graph ---------------------------------------------------------------------------------------
-    def graph_scores(self,seeds,bundles):
+    def graph_scores(self,seeds,bundles,cache=None):
         alpha,beta=self.exponents;q=len(seeds)
         query,source,edge=self.expand(torch.cat([torch.full((len(s),),i) for i,s in enumerate(seeds)]),torch.cat(seeds))
         target=self.target[edge];n=self.counts[edge]
@@ -184,7 +191,7 @@ class DIALS(nn.Module):
         w=n*torch.exp(-alpha*ds-beta*dt)
         first=torch.zeros(q*self.n).scatter_add(0,query*self.n+target,w).view(q,self.n)
         out=self.theta*first.log1p()
-        prior=self.prior(self.frequency.log1p()[:,None]).squeeze(1).expand(q,-1)
+        prior=(self.prior(self.frequency.log1p()[:,None]).squeeze(1) if cache is None else cache['prior']).expand(q,-1)
         if bundles is not None:
             rows=torch.cat([torch.full((len(b),),i) for i,b in enumerate(bundles)]);cols=torch.cat(bundles)
             left=(self.frequency[cols]-1).clamp_min(0)
@@ -205,12 +212,13 @@ class DIALS(nn.Module):
             stats.append(torch.stack((torch.tensor(float(len(s))).log(),f.log1p().mean(),(f==0).float().mean())))
         return F.softplus(self.gate(torch.stack(stats)))
 
-    def forward(self,seeds,bundles=None,keys=None):
-        """Scores (queries x catalogue). bundles: the complete training bundles, for leave-one-out training scores."""
-        if keys is not None and bundles is not None:raise ValueError('Cached keys are for evaluation only')
+    def forward(self,seeds,bundles=None,cache=None):
+        """Scores (queries x catalogue). bundles: the complete training bundles, for leave-one-out training scores.
+        cache: model.cache(), for evaluation only."""
+        if cache is not None and bundles is not None:raise ValueError('The cache is for evaluation only')
         seeds=[torch.as_tensor(sorted(set(s)),dtype=torch.long) for s in seeds]
         if bundles is not None:bundles=[torch.as_tensor(sorted(set(b)),dtype=torch.long) for b in bundles]
-        parts=[self.content_scores(seeds,bundles,keys)]+[self.label_scores(i,seeds,bundles) for i in range(self.levels)]+[self.graph_scores(seeds,bundles)]
+        parts=[self.content_scores(seeds,bundles,cache)]+[self.label_scores(i,seeds,bundles) for i in range(self.levels)]+[self.graph_scores(seeds,bundles,cache)]
         w=self.gate_weights(seeds,bundles)
         return sum(w[:,j,None]*v for j,v in enumerate(parts))
 

@@ -5,6 +5,10 @@ completion. Given some items of a bundle (the seeds), rank the whole catalogue f
 
 One configuration, unchanged across seven datasets, with 41,624 trained parameters (41,978 with two label levels).
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
+- [RESULTS.md](RESULTS.md) has every result: against simple and neural baselines, under DDBC's protocol, the
+  second-hop ablation, and model sizes.
+
 ## Model
 
 For seeds S and candidate item c,
@@ -38,6 +42,12 @@ parameters and 1e-3 for the content maps, with weight decay 1e-3. The epoch is c
 
 ## Results
 
+> **Status (2026-11-11):** the POG, POG_DENSE, Spotify_sparse and Spotify numbers here come from an earlier feature
+> set: on POG it added our own bge-small-zh embedding of the item titles, and on Spotify it used the CLAP audio
+> features without the CLAP text. The code now uses only the released features (BLIP image and text on POG, CLAP audio
+> and text on Spotify), the same files CLHE uses. These four datasets are being retrained, and their rows will be
+> replaced. Electronic, Food, Clothing and Dunnhumby are unaffected.
+
 Test Recall@20 and NDCG@20, full-catalogue ranking, mean of seeds 0, 1 and 2. On POG and Spotify, "clean" excludes
 test queries whose complete bundle also occurs in training or validation, which happens in the supplied splits. The
 e-commerce splits have no such overlap.
@@ -64,7 +74,8 @@ Data is not part of the repository. By default it is read from the repository's 
     <root>/BundleRec/dataset/{electronic,food,clothing}/                 bundle_item.csv, item_titles.csv, item_categories.csv
 
 - **POG and Spotify:** the supplied train, validation and test files are used unmodified. The released item features
-  (POG: title, image and description; Spotify: audio) are projected to 128 dimensions by a truncated SVD.
+  (POG: BLIP image and text; Spotify: CLAP audio and text; only the released files) are projected to 128 dimensions by a
+  truncated SVD.
 - **Electronic, Food and Clothing:** duplicate bundles are removed, then a seeded 70/10/20 split is made, with half of
   each held-out bundle hidden. Features are TF-IDF of item titles, projected to 128 dimensions.
 

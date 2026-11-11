@@ -21,13 +21,25 @@ def query_metrics(scores,seeds,truth,k=20):
 
 
 @torch.inference_mode()
+def score_batches(model,seeds,batch=32):
+    """Full-catalogue scores (batch x items) for successive batches of seed lists."""
+    model.eval();cache=model.cache()
+    for start in range(0,len(seeds),batch):
+        values=model(seeds[start:start+batch],cache=cache).numpy()
+        if not np.isfinite(values).all():raise RuntimeError('Nonfinite scores')
+        yield values
+
+
+def scores(model,seeds,batch=32):
+    return np.concatenate(list(score_batches(model,seeds,batch)))
+
+
+@torch.inference_mode()
 def evaluate(model,pairs,batch=32):
     """Recall@20 and NDCG@20 per query and on average."""
-    model.eval();started=time.monotonic();records=[];keys=model.keys()
-    for start in range(0,len(pairs),batch):
-        rows=pairs[start:start+batch];values=model([s for s,_ in rows],keys=keys).numpy()
-        if not np.isfinite(values).all():raise RuntimeError('Nonfinite scores')
-        records.extend(query_metrics(v,s,g) for v,(s,g) in zip(values,rows))
+    started=time.monotonic();records=[]
+    for start,values in zip(range(0,len(pairs),batch),score_batches(model,[s for s,_ in pairs],batch)):
+        records.extend(query_metrics(v,s,g) for v,(s,g) in zip(values,pairs[start:start+batch]))
     return dict(recall20=float(np.mean([r['recall20'] for r in records])),ndcg20=float(np.mean([r['ndcg20'] for r in records])),
                 queries=records,seconds=time.monotonic()-started)
 
