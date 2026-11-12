@@ -58,6 +58,21 @@ Recipe picked per dataset & one method for every dataset & one configuration on 
 \key{DIALS keeps BundleFuse's evidence and learns its hand-set choices, with 41.6k parameters.}
 \end{frame}
 
+% ------------------------------------------------------------------ why DIALS
+\begin{frame}{Why DIALS: what it offers}
+\key{Bundle completion that still works when the items have no purchase history, at a fraction of the size of neural models.}\par
+\vspace{3mm}
+\small
+\begin{itemize}\setlength\itemsep{4pt}
+\item \key{Works without history.} On POG 96\% of test queries have no co-occurrence evidence; there DIALS scores NDCG@20 .019 against CLHE's .005. On Spotify\_sparse targets with no history: .263 against .003.
+\item \key{More accurate on identical splits and features.} Ahead of CLHE on all 6 datasets where it was rerun, and of RaMen on the 3 where it was: +.014 to +.197 NDCG@20, all $p=.002$.
+\item \key{Cheap to run.} 41.6k parameters (18--1,350$\times$ fewer), none per item; trains on CPU in 12--15 min on POG; a new item is scored on day one, without retraining.
+\item \key{Readable.} Every score splits into named terms and gate weights; the learned sign of the category term flips between domains (avoid the seed's category on fashion, prefer the same artist on music).
+\end{itemize}
+\vspace{2mm}
+\key{Where it stops:} on warm grocery baskets (Dunnhumby) it ties the best simple baseline. The case for DIALS is new, sparse or changing catalogues.
+\end{frame}
+
 % ------------------------------------------------------------------ 2
 \begin{frame}{The task and three kinds of evidence}
 \[
@@ -95,28 +110,34 @@ RaMen (ECAI'25) & item--item graph, hypergraph & no & fixed mixing constants, th
 
 % ------------------------------------------------------------------ 4
 \begin{frame}{What is different: separate terms, not one item vector}
+\small
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.48\textwidth}
-\key{Early fusion} (CLHE, RaMen)\par\vspace{2mm}
+\key{Early fusion} (CLHE, RaMen)\par\vspace{1mm}
 $\;s(c\mid S)=\mathrm{enc}(S)^\top v_c,\quad v_c=\mathrm{fuse}(\text{ID},\text{content},\text{graph})$\par
-\vspace{3mm}
-The evidence types are mixed before scoring, so no query can say ``these seeds have no history, trust content''.
+\vspace{1mm}
+Evidence is mixed before scoring, so no query can say ``these seeds have no history, trust content''.
 \end{column}
 \begin{column}{0.48\textwidth}
-\key{Late fusion with a gate} (DIALS)\par\vspace{2mm}
+\key{Late fusion with a gate} (DIALS)\par\vspace{1mm}
 $\;s=w_C(S)\,C+\sum_l w_l(S)\,L_l+w_G(S)\,G$\par
-\vspace{3mm}
-Each evidence type keeps its own learned score, so a query whose seeds have no history still gets content and label evidence.
+\vspace{1mm}
+Each evidence type keeps its own score, so seeds with no history still get content and label evidence.
 \end{column}
 \end{columns}
-\vspace{5mm}
+\vspace{2mm}
 \textbf{Spotify\_sparse, test NDCG@20 by share of targets with any co-occurring seed:}\par\vspace{1mm}
-\centering\renewcommand{\arraystretch}{1.25}
+\centering\renewcommand{\arraystretch}{1.05}
 \begin{adjustbox}{max width=\textwidth}\begin{tabular}{lrrrrr}\toprule
-Share with history & 0\% & (0, 25\%) & [25, 50\%) & [50, 75\%) & [75, 100\%]\\\midrule
+Share with history & 0\% & (0, 25\%) & [25, 50\%) & [50, 75\%) & [75, 100\%]\\
+Queries & 132 & 274 & 540 & 743 & 808\\\midrule
 CLHE & .003 & .022 & .051 & .104 & .219\\
-\key{DIALS} & \textbf{.263} & \textbf{.297} & \textbf{.218} & \textbf{.223} & \textbf{.298}\\\bottomrule
-\end{tabular}\end{adjustbox}
+\key{DIALS} & \textbf{.263} & \textbf{.296} & \textbf{.218} & \textbf{.222} & \textbf{.298}\\
+DIALS, co-occurrence switched off & .272 & .305 & .225 & .213 & .254\\
+\key{Gain from co-occurrence} & $-$.009 & $-$.009 & $-$.007 & +.009 & \textbf{+.044}\\\bottomrule
+\end{tabular}\end{adjustbox}\par
+\raggedright\vspace{1mm}
+\fn{Columns hold different queries: compare within a column. Co-occurrence switched off at inference, weights kept, 3 seeds; per-column differences not tested. The gate sees seeds, not which targets have history, so where few do, co-occurrence promotes wrong items.}
 \end{frame}
 
 % ------------------------------------------------------------------ 5
@@ -363,9 +384,11 @@ Full Spotify training & CPU, hours & $\approx$6.5 GPU-h per seed & --\\\bottomru
 \item \key{One configuration} that recovers opposite domain structure (avoid the seed's category on fashion, same artist on music) on 8 datasets.
 \item \key{Leakage-free training} by leave-one-out and cross-fitting.
 \end{enumerate}
-\vspace{3mm}
+\vspace{1mm}
 \fn{The components exist separately (graph filters with degree exponents, category compatibility, homophily/heterophily learning); the claim is the combination and its measured effect, not that any part is first.}\par
-\vspace{3mm}
+\vspace{1.5mm}
+\key{In one line:} bundle completion that works without purchase history, with 41.6k parameters.\par
+\vspace{1mm}
 \key{Next:} Instacart (real product names and aisles); TIFU-KNN and UP-CF@r for the personalized task; RaMen on POG and Spotify.
 \end{frame}
 

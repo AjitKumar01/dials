@@ -1,6 +1,6 @@
 # DIALS deck: presenter notes and prepared answers
 
-Deck: `slides/dials_guide.tex` (20 slides; the architecture figure is read from `../figures/architecture.pdf`). Build: run `pdflatex dials_guide.tex` twice from `slides/`.
+Deck: `slides/dials_guide.tex` (21 slides; the architecture figure is read from `../figures/architecture.pdf`). Build: run `pdflatex dials_guide.tex` twice from `slides/`.
 
 ## The argument in four sentences
 
@@ -30,37 +30,52 @@ questions up front shows you expect them.
   Chinese title embeddings on POG). The comparisons in this talk are against CLHE, RaMen and simple baselines on
   identical splits and features.
 
-**3. The task and three kinds of evidence.** Each kind fails somewhere:
+**3. Why DIALS.** The pitch, before any detail. Say the bold line first: bundle completion that still works when
+the items have no purchase history, at a fraction of the size of neural models.
+- **Without history:** POG, 96% of queries have no co-occurrence evidence: .019 vs CLHE .005. Spotify_sparse
+  no-history targets: .263 vs .003.
+- **Accuracy:** ahead of CLHE on all 6 rerun datasets and of RaMen on the 3 where it was rerun, +.014 to +.197
+  NDCG@20.
+- **Cost:** 41.6k parameters, none per item, CPU training in minutes; new items scored on day one.
+- **Readable:** named terms; the sign of the category term flips by domain.
+- **Say the limit yourself:** warm grocery (Dunnhumby) is a tie. The case is new, sparse or changing catalogues.
+
+**4. The task and three kinds of evidence.** Each kind fails somewhere:
 - history fails for new or rare items;
 - content fails because resemblance is not compatibility;
 - labels fail when categories are coarse.
 
 The real question is how much to trust each one, per query.
 
-**4. Is combining evidence new? No.** Say it plainly; it disarms the question.
+**5. Is combining evidence new? No.** Say it plainly; it disarms the question.
 - **Hybrid CF:** one fixed weight per dataset.
 - **CLHE:** attention over an ID embedding, a multimodal vector and a LightGCN vector from the user–item graph, giving
   one vector per item.
 - **RaMen:** an item–item graph plus a hypergraph, mixed with fixed constants into one vector.
 - **Neither neural model uses labels.**
 
-**5. Separate terms, not one item vector.**
+**6. Separate terms, not one item vector.**
 - **Early fusion:** $s=\mathrm{enc}(S)^\top v_c$, where $v_c$ already mixes everything. When the seeds have no
   history, nothing can fall back to content.
 - **The evidence, from Spotify_sparse:** on targets with no co-occurring seed, CLHE scores NDCG .003 and DIALS .263.
+- **Read the table down a column, not across.** Each column holds different queries; the dip in the middle columns
+  is in the queries (larger, mixed bundles), and it is there with co-occurrence switched off too.
+- **On the same queries, co-occurrence helps once most targets have history** (+.009, +.044) and costs about .008
+  where few do: it promotes items that co-occur with the seeds, and the gate sees only the seeds. Per-candidate
+  weighting is the natural next step.
 
-**6. Labels.** Simple rules on category or artist beat CLHE on all four large datasets, so labels are a strong
+**7. Labels.** Simple rules on category or artist beat CLHE on all four large datasets, so labels are a strong
 signal both neural models leave out. DIALS still beats the best such rule:
 - +.008 to +.051 NDCG;
 - p = .0008 after Holm;
 - that rule is tuned on validation and also blends ItemKNN and content.
 
-**7. Each design choice, and its evidence.** This slide answers "why not something simpler?" in advance. Every row
+**8. Each design choice, and its evidence.** This slide answers "why not something simpler?" in advance. Every row
 pairs a choice with the simpler alternative and the measurement that rejected it. The two to point at:
 - **free label embeddings** memorized the bundles of rare labels;
 - **without leave-one-out** a history term drove validation NDCG to .06.
 
-**8. The architecture.** Read the figure bottom to top.
+**9. The architecture.** Read the figure bottom to top.
 - **Blue boxes (frozen):** computed once from the training data: features $X$, partner history $H=D^{-1}NX$, label
   factors $P_l,Q_l$ from the SVD of $\Gamma_l^\top N\Gamma_l$, and the counts $N$.
 - **Orange boxes (trained):** the three terms, each a score for every catalogue item.
@@ -69,25 +84,25 @@ pairs a choice with the simpler alternative and the measurement that rejected it
 - **Point to make:** nothing in the orange boxes is a per-item table. That is why new items are scored on day one and
   why the parameter count does not grow with the catalogue.
 
-**9. The score.** One equation, three terms, a gate.
+**10. The score.** One equation, three terms, a gate.
 - Point at the sign of $\delta$ (learned) and $M_l$ (16×16).
 - One configuration on all 8 datasets.
 
-**10. Leakage-free training.** Leave-one-out, cross-fitting, full-catalogue softmax (no negative sampling, so no
+**11. Leakage-free training.** Leave-one-out, cross-fitting, full-catalogue softmax (no negative sampling, so no
 mismatch between training and evaluation).
 
-**11. Against the best simple baseline.**
+**12. Against the best simple baseline.**
 - **Separated:** DIALS beats the strongest of nine tuned baselines on 6 of 8 datasets.
 - **Not separated:** Food (NDCG) and Dunnhumby. They're shown in colour; don't hide them.
 
-**12. Against CLHE and RaMen.**
+**13. Against CLHE and RaMen.**
 - **Rerun with their code** on identical split files and the same released features, 3 seeds. All 18 tests
   p = .002.
 - **Parameters:** 41.6k against 0.75M–56.5M.
 - **RaMen's published e-commerce numbers (.84 R@20)** use an unreleased split and a user–item graph that contains the
   test bundles. Say this only if asked.
 
-**13. Is it just an ensemble?** The main slide for that question.
+**14. Is it just an ensemble?** The main slide for that question.
 - **"Standard scorers, tuned weighted sum"** is an ensemble with the same three kinds of evidence. It loses .008–.051.
 - **"DIALS terms, fixed weights"** is DIALS's own learned terms with constant weights. It keeps most of the gain.
 - **So:** the final step is a sum in every case. What makes DIALS different is that the terms are learned for
@@ -95,22 +110,22 @@ mismatch between training and evaluation).
 - **The gate** adds +.016 on Spotify_sparse, where history availability varies most across queries, and little on
   Clothing or POG.
 
-**14. The sign of δ.** Outfits need one item per category, so a shared category counts against a candidate on POG
+**15. The sign of δ.** Outfits need one item per category, so a shared category counts against a candidate on POG
 (δ < 0). A shared artist counts for one on Spotify (δ > 0).
 - Nothing tells the model this; one configuration learns both.
 - A sum of similarity scorers can only add "same category" with a positive weight.
 
-**15. Where the lead comes from.**
+**16. Where the lead comes from.**
 - **POG is a no-history problem:** 96% of queries have zero co-occurrence evidence. There DIALS is 4× CLHE.
 - **POG_DENSE:** the lead over CLHE grows as evidence grows (+.014 at 0, +.062 at 4+).
 - **The caveat:** on the few POG queries with evidence, EASE beats DIALS.
 
-**16. Knockouts.** Every term matters somewhere, and which one matters depends on the domain:
+**17. Knockouts.** Every term matters somewhere, and which one matters depends on the domain:
 - the prior on POG_DENSE;
 - labels on Spotify_sparse;
 - content and labels together on POG.
 
-**17. Practical value.**
+**18. Practical value.**
 - **Size and speed:** 41.6k parameters, none per item. Trains in 12–15 min on CPU for POG; 0.5–3 ms per query.
 - **New items:** scored from features and category on day one.
 - **Explainable:** every recommendation splits into named terms.
@@ -119,17 +134,17 @@ mismatch between training and evaluation).
 - **Training cost of the alternative:** full Spotify CLHE needed about 6.5 GPU-hours per seed, and 2 of 3 seeds did
   not finish in Kaggle's 12-hour limit.
 
-**18. Where DIALS does not win.**
+**19. Where DIALS does not win.**
 - **Dunnhumby ties.**
 - **Personalization helps every method alike:** the household's repurchase counts add about 45% to every method.
 - **Food:** NDCG not separated.
 - **POG:** the released-feature drop.
 - **Open runs:** CLHE on full Spotify, and RaMen on POG and Spotify.
 
-**19. Contribution.** Four items, then the disclaimer: the components exist separately; the claim is the combination
-and its measured effect. Never say "first".
+**20. Contribution.** Four items, then the disclaimer: the components exist separately; the claim is the combination
+and its measured effect. Never say "first". Close on the one line: bundle completion that works without purchase history, with 41.6k parameters.
 
-**20. Backup.** The Bundle-MLLM and DDBC protocols, if asked about LLM or diffusion methods.
+**21. Backup.** The Bundle-MLLM and DDBC protocols, if asked about LLM or diffusion methods.
 
 ## Prepared answers
 
@@ -150,7 +165,7 @@ test:
 ### "Is it just an ensemble?"
 
 In form, the last step is a weighted sum; concede that. What separates it from an ensemble of existing scorers
-(slide 13):
+(slide 14):
 - **Same evidence, standard scorers:** the best tuned weighted sum loses by .008–.051.
 - **DIALS's learned terms, fixed weights:** keeps most of the gain. The gain is in the terms.
 - **Sign flip:** the learned label relation changes sign by domain, which no positive-weighted sum of similarity
