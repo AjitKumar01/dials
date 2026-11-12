@@ -6,6 +6,7 @@ completion. Given some items of a bundle (the seeds), rank the whole catalogue f
 One configuration, unchanged across seven datasets, with 41,624 trained parameters (41,978 with two label levels).
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
+- [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes CLHE, RaMen, the simple baselines and DIALS in one notation.
 - [RESULTS.md](RESULTS.md) has every result: against simple and neural baselines, under DDBC's protocol, the
   second-hop ablation, and model sizes.
 
@@ -42,12 +43,6 @@ parameters and 1e-3 for the content maps, with weight decay 1e-3. The epoch is c
 
 ## Results
 
-> **Status (2026-11-11):** the POG, POG_DENSE, Spotify_sparse and Spotify numbers here come from an earlier feature
-> set: on POG it added our own bge-small-zh embedding of the item titles, and on Spotify it used the CLAP audio
-> features without the CLAP text. The code now uses only the released features (BLIP image and text on POG, CLAP audio
-> and text on Spotify), the same files CLHE uses. These four datasets are being retrained, and their rows will be
-> replaced. Electronic, Food, Clothing and Dunnhumby are unaffected.
-
 Test Recall@20 and NDCG@20, full-catalogue ranking, mean of seeds 0, 1 and 2. On POG and Spotify, "clean" excludes
 test queries whose complete bundle also occurs in training or validation, which happens in the supplied splits. The
 e-commerce splits have no such overlap.
@@ -57,13 +52,17 @@ e-commerce splits have no such overlap.
 | Electronic | 346 | .4691 | .3346 | .3346 | 0.11 |
 | Food | 353 | .5862 | .4388 | .4388 | 0.11 |
 | Clothing | 371 | .5338 | .3876 | .3876 | 0.12 |
-| POG_DENSE | 5,938 (5,547) | .3779 | .2808 | .3093 | 0.46 |
-| POG | 4,000 (3,995) | .0606 | .0360 | .0367 | 0.63 |
-| Spotify_sparse | 2,498 (2,497) | .1816 | .2546 | .2549 | 3.27 |
-| Spotify | 4,000 (3,995) | .1660 | .2816 | .2822 | 4.25 |
+| Dunnhumby | 5,707 | .1490 | .1023 | .1023 | 1.99 |
+| POG_DENSE | 5,938 (5,547) | .3756 | .2802 | .3080 | 0.38 |
+| POG | 4,000 (3,995) | .0543 | .0313 | .0320 | 0.49 |
+| Spotify_sparse | 2,498 (2,497) | .1837 | .2562 | .2565 | 2.38 |
+| Spotify | 4,000 (3,995) | .1674 | .2824 | .2831 | 3.24 |
 
 `python -m dials test` writes these numbers to `runs/summary.json`. Inference time is the test pass on 4 CPU threads
-divided by the number of queries, after a one-time setup of the pair counts and label SVDs.
+divided by the number of queries, after a one-time setup of the pair counts and label SVDs. Item features are the released ones
+(BLIP image and text on POG, CLAP audio and text on Spotify, the files CLHE uses) and TF-IDF of the item text where
+nothing is released. The four POG and Spotify rows were retrained with these on 2026-11-11; RESULTS.md gives the
+earlier numbers and the comparisons with baselines.
 
 ## Data
 

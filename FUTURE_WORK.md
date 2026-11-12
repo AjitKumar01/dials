@@ -9,9 +9,9 @@ analysis in full.
 ### Why a 41.6 k-parameter model has slower epochs than 16 M-parameter RaMen
 
 Parameter count is not compute. DIALS applies its shared maps to every item at every step, because the loss is a
-softmax over the whole catalogue. RaMen's parameters are mostly embedding rows that a batch only looks up, and it
-trains with BPR and one negative (two scored items per bundle) at batch 1024. On POG that is 14 steps per epoch for
-RaMen and 437 for DIALS (batch 32).
+softmax over the whole catalogue. RaMen's parameters are mostly embedding rows that a batch only looks up. It
+also normalizes over the whole catalogue, but at batch 1024: on POG that is 14 steps per epoch for RaMen and 437 for
+DIALS (batch 32).
 
 Measured on POG (4 CPU threads, Apple M5 Pro, `bundlefuse/results/timing`):
 
@@ -49,7 +49,7 @@ Acceptance: outputs match the frozen model, within a tolerance, on every dataset
 ### Removing the dependence on n (changes the objective)
 
 Sampled softmax with a logQ correction (4–16 k popularity-sampled negatives), or a cache of stale keys refreshed every
-few hundred steps. Acceptance: three Spotify seeds reproduce the frozen clean NDCG@20 (.2816) within noise.
+few hundred steps. Acceptance: three Spotify seeds reproduce the frozen clean NDCG@20 (.2824) within noise.
 
 ### Memory, and where hashing helps
 
@@ -87,7 +87,7 @@ The paper should report two feature settings, kept separate. Readers want both a
 best result achievable in 2026.
 
 **Matched features (the method comparison).**
-- POG and Spotify use only the released features. This was applied on 2026-11-11 and retrains are running:
+- POG and Spotify use only the released features. This was applied on 2026-11-11, and the retrained results are in RESULTS.md:
   - POG and POG_DENSE: BLIP image and text;
   - Spotify and Spotify_sparse: CLAP audio and text.
 - Electronic, Food, Clothing and Dunnhumby have no released features. The plan is BLIP text embeddings computed by us,
@@ -115,6 +115,8 @@ What this tests:
 - **Is the gain the model's or the features'?** If DIALS's margin holds in both settings, the gain is the model's.
 - **POG most of all.** Its titles are Chinese and BLIP's text encoder is English-trained, so the released text features
   are likely weak there. A multilingual encoder may help never-seen items most (59% of POG targets).
+  Measured: replacing our Chinese bge-small-zh title embeddings with the released BLIP features cost POG 13%
+  of its test NDCG@20 (.0360 to .0313); POG_DENSE and Spotify moved by under 1%.
 - **Does a stronger signal survive DIALS's fixed SVD to 128 dimensions?** If not, that is a design weakness.
 - **Do feature-heavy baselines catch up?** CLHE's MLP sees the full-dimensional features, so it may gain more than DIALS.
   Report it either way.

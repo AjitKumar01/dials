@@ -482,18 +482,18 @@ There are no per-item or per-label embeddings, so the trainable part does not gr
 
 ## 14. What the trained models learn
 
-The values below are averaged over the three seeds; the gate weights are averaged over validation queries. The POG and Spotify rows come from
-the earlier feature set described at the top of RESULTS.md and will be updated after retraining.
+The values below are averaged over the three seeds; the gate weights are averaged over the first 512 validation
+queries. $\delta$ is evaluated at a label of median size.
 
 | Dataset | $\theta$ | $\alpha$ | $\beta$ | Gate weight: content / labels / graph | $\delta$ for one of 3 seeds sharing $c$'s label |
 |---|---:|---:|---:|---|---|
 | Electronic | 1.94 | .05 | .15 | 1.33 / 2.16 / 5.05 | +0.73 (category) |
 | Food | 1.77 | .01 | .05 | 1.21 / 1.05 / 4.70 | +1.63 |
 | Clothing | 1.77 | .04 | −.15 | 1.88 / 1.60 / 6.57 | +1.91 |
-| POG_DENSE | 4.32 | .42 | .36 | 6.28 / 16.29 / 3.34 | **−0.32** |
-| POG | 2.26 | .26 | .29 | 5.45 / 12.03 / 3.26 | **−0.15** |
-| Spotify_sparse | 0.85 | −.10 | −.01 | 2.62 / 1.20, 1.29 / 0.84 | +2.89 (artist), +1.57 (album) |
-| Spotify | 1.08 | .37 | −.37 | 4.04 / 1.19, 1.22 / 1.10 | +2.39 (artist), +0.80 (album) |
+| POG_DENSE | 4.58 | .41 | .37 | 5.99 / 15.24 / 3.14 | **−0.31** |
+| POG | 2.38 | .31 | .31 | 4.18 / 14.78 / 3.73 | **−0.16** |
+| Spotify_sparse | 0.83 | −.07 | −.05 | 3.05 / 1.24, 1.28 / 0.82 | +2.82 (artist), +1.43 (album) |
+| Spotify | 1.10 | .33 | −.30 | 3.07 / 1.01, 1.14 / 1.10 | +2.63 (artist), +1.17 (album) |
 
 - **On POG outfits, a shared category is penalized,** and the label term has the largest gate weight. An outfit
   needs one item per category, so "same category as a seed" is evidence against. Nothing in the model says this; the
@@ -515,7 +515,7 @@ SVD. It was meant to reach partners of partners. Retrained without it (three see
 NDCG@20 was:
 - level on Electronic, Food, Clothing, POG_DENSE and Spotify_sparse;
 - slightly better without it on POG (+.0007);
-- .005 lower without it on full Spotify (.2865 → .2816, significant).
+- .005 lower without it on full Spotify (.2865 → .2816, significant; these runs used the earlier item features, RESULTS.md section 6).
 
 Removing it drops six rank-64 SVDs of the $n \times n$ graph (about 2.5 minutes and 0.8 GB on Spotify), made POG
 inference about 3× faster in our timings, and leaves one graph term to explain. It was removed on that trade-off,
