@@ -3,7 +3,7 @@
 **DI**agonal-plus-**L**ow-rank label relations with **S**pectral cross-fitting: a small neural model for bundle
 completion. Given some items of a bundle (the seeds), rank the whole catalogue for the missing ones.
 
-One configuration, unchanged across seven datasets, with 41,624 trained parameters (41,978 with two label levels).
+One configuration, unchanged across eight datasets, with 41,624 trained parameters (41,978 with two label levels).
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
 - [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes CLHE, RaMen, the simple baselines and DIALS in one notation.

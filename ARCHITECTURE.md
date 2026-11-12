@@ -506,7 +506,7 @@ queries. $\delta$ is evaluated at a label of median size.
 
 ## 15. Design decisions and the evidence for them
 
-**One fixed configuration.** A single configuration was used on all seven datasets, with no per-dataset tuning. The
+**One fixed configuration.** A single configuration was used on all eight datasets, with no per-dataset tuning. The
 e-commerce datasets were never used while the model was developed.
 
 **No second graph hop.** An earlier version added a second hop, $\theta_2 \log\big(1 + [a A']_c\big)$, where $a$ is
