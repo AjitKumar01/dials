@@ -270,6 +270,26 @@ Spotify\_sparse & .115 & & \textbf{.256} & +.141 & 29.0M / 56.5M / 42.0k\\\botto
 \fn{Their own code, 3 seeds each, settings chosen on validation; all 18 tests $p=.002$ (Holm over 20). Published numbers on the same POG/Spotify split files: RaMen POG .0226, Spotify .1882; DIALS (all queries) .0320, .2831. RaMen's e-commerce numbers (R@20 .84) use an unreleased split and a user--item graph that contains the test bundles.}
 \end{frame}
 
+% ------------------------------------------------------------------ bundle budget
+\begin{frame}{With fewer training bundles, and with none}
+\centering\renewcommand{\arraystretch}{1.25}\small
+\begin{adjustbox}{max width=\textwidth}\begin{tabular}{lrrrrrr}\toprule
+& \multicolumn{3}{c}{POG\_DENSE} & \multicolumn{3}{c}{POG}\\\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+Trained on & \key{DIALS} & CLHE & Best simple & \key{DIALS} & CLHE & Best simple\\\midrule
+All bundles & \textbf{.280} & .248 & .241 & \textbf{.0313} & .0172 & .0234\\
+10\% of bundles & \textbf{.239} & .202 & .214 & \textbf{.0113} & .0049 & .0084\\
+1\% of bundles & \textbf{.201} & .169 & .176 & \textcolor{Warn}{.0002} & .0010 & \textbf{.0016}\\
+User histories, no bundles & \textcolor{Warn}{.0046} & .0028 & \textbf{.0111} & \textcolor{Warn}{.0013} & .0020 & \textbf{.0039}\\\bottomrule
+\end{tabular}\end{adjustbox}\par
+\raggedright\vspace{2mm}
+\begin{itemize}\setlength\itemsep{2pt}\small
+\item \key{Scarce bundles, dense data:} at 1\% of POG\_DENSE, DIALS (.201) is ahead of CLHE trained on the same 1\% (.169), and not far below CLHE on all bundles (.248).
+\item \key{Too sparse:} at 1\% of POG every method is near zero; DIALS is slightly behind.
+\item \key{No bundles at all:} trained on user histories, every method is near zero. Histories pair \emph{substitutes} (21--26\% of pairs share a category), bundles pair \emph{complements} ($\approx$0\%).
+\end{itemize}
+\fn{Clean test NDCG@20, 3 seeds; subsets nested, same validation and test queries. DIALS vs CLHE and vs best simple: $p\le.017$ (Holm over 40) except: POG histories vs CLHE ($p=.38$); with users who overlap test bundles removed, DIALS vs CLHE not separated on either dataset ($p\ge.37$). Best simple chosen on validation per condition.}
+\end{frame}
+
 % ------------------------------------------------------------------ 11
 
 
@@ -372,6 +392,7 @@ Full Spotify training & CPU, hours & $\approx$6.5 GPU-h per seed & --\\\bottomru
 \item \key{Personalization helps everyone equally:} adding the household's repurchase counts lifts DIALS by 45\% (.102 $\to$ .148), and the blend by 42\% (.104 $\to$ .148): a tie again.
 \item \key{Food:} recall separated, NDCG not ($p=.28$).
 \item \key{Features matter on POG:} the released BLIP text features on Chinese titles cost DIALS 13\% against a Chinese text encoder (.0313 vs .0360).
+\item \key{No bundles, no model:} trained on user histories instead of bundles, every method is near zero; simple RP3$\beta$ or label rules come out ahead of DIALS.
 \item \key{Open:} CLHE on full Spotify has 1 of 3 seeds; RaMen not rerun on POG/Spotify.
 \end{itemize}
 \end{frame}

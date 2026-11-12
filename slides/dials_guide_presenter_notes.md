@@ -1,6 +1,6 @@
 # DIALS deck: presenter notes and prepared answers
 
-Deck: `slides/dials_guide.tex` (21 slides; the architecture figure is read from `../figures/architecture.pdf`). Build: run `pdflatex dials_guide.tex` twice from `slides/`.
+Deck: `slides/dials_guide.tex` (22 slides; the architecture figure is read from `../figures/architecture.pdf`). Build: run `pdflatex dials_guide.tex` twice from `slides/`.
 
 ## The argument in four sentences
 
@@ -102,7 +102,17 @@ mismatch between training and evaluation).
 - **RaMen's published e-commerce numbers (.84 R@20)** use an unreleased split and a user–item graph that contains the
   test bundles. Say this only if asked.
 
-**14. Is it just an ensemble?** The main slide for that question.
+**14. With fewer training bundles, and with none.** CLHE's paper motivates itself with "I don't have many bundles",
+but never trains on fewer. We did, on POG_DENSE and POG, at 10% and 1% of the training bundles, and with user
+histories in place of bundles.
+- **Read the POG_DENSE column first:** DIALS keeps its lead at every budget. At 1% it still scores .201, close to
+  CLHE trained on everything (.248). Labels and content carry it when co-occurrence is thin.
+- **Then POG at 1%:** every method is near zero. Say plainly that DIALS falls slightly behind there; it is a limit.
+- **Then user histories:** nobody learns bundles from them, CLHE included. Histories pair substitutes (two dresses);
+  bundles pair complements (dress and shoes). So the "no bundles" scenario is open for every method, not just ours.
+- **If asked whether the histories leak test bundles:** removing the users who overlap test bundles changes nothing.
+
+**15. Is it just an ensemble?** The main slide for that question.
 - **"Standard scorers, tuned weighted sum"** is an ensemble with the same three kinds of evidence. It loses .008–.051.
 - **"DIALS terms, fixed weights"** is DIALS's own learned terms with constant weights. It keeps most of the gain.
 - **So:** the final step is a sum in every case. What makes DIALS different is that the terms are learned for
@@ -110,22 +120,22 @@ mismatch between training and evaluation).
 - **The gate** adds +.016 on Spotify_sparse, where history availability varies most across queries, and little on
   Clothing or POG.
 
-**15. The sign of δ.** Outfits need one item per category, so a shared category counts against a candidate on POG
+**16. The sign of δ.** Outfits need one item per category, so a shared category counts against a candidate on POG
 (δ < 0). A shared artist counts for one on Spotify (δ > 0).
 - Nothing tells the model this; one configuration learns both.
 - A sum of similarity scorers can only add "same category" with a positive weight.
 
-**16. Where the lead comes from.**
+**17. Where the lead comes from.**
 - **POG is a no-history problem:** 96% of queries have zero co-occurrence evidence. There DIALS is 4× CLHE.
 - **POG_DENSE:** the lead over CLHE grows as evidence grows (+.014 at 0, +.062 at 4+).
 - **The caveat:** on the few POG queries with evidence, EASE beats DIALS.
 
-**17. Knockouts.** Every term matters somewhere, and which one matters depends on the domain:
+**18. Knockouts.** Every term matters somewhere, and which one matters depends on the domain:
 - the prior on POG_DENSE;
 - labels on Spotify_sparse;
 - content and labels together on POG.
 
-**18. Practical value.**
+**19. Practical value.**
 - **Size and speed:** 41.6k parameters, none per item. Trains in 12–15 min on CPU for POG; 0.5–3 ms per query.
 - **New items:** scored from features and category on day one.
 - **Explainable:** every recommendation splits into named terms.
@@ -134,17 +144,18 @@ mismatch between training and evaluation).
 - **Training cost of the alternative:** full Spotify CLHE needed about 6.5 GPU-hours per seed, and 2 of 3 seeds did
   not finish in Kaggle's 12-hour limit.
 
-**19. Where DIALS does not win.**
+**20. Where DIALS does not win.**
 - **Dunnhumby ties.**
 - **Personalization helps every method alike:** the household's repurchase counts add about 45% to every method.
 - **Food:** NDCG not separated.
 - **POG:** the released-feature drop.
+- **No bundles:** trained on user histories, every method is near zero.
 - **Open runs:** CLHE on full Spotify, and RaMen on POG and Spotify.
 
-**20. Contribution.** Four items, then the disclaimer: the components exist separately; the claim is the combination
+**21. Contribution.** Four items, then the disclaimer: the components exist separately; the claim is the combination
 and its measured effect. Never say "first". Close on the one line: bundle completion that works without purchase history, with 41.6k parameters.
 
-**21. Backup.** The Bundle-MLLM and DDBC protocols, if asked about LLM or diffusion methods.
+**22. Backup.** The Bundle-MLLM and DDBC protocols, if asked about LLM or diffusion methods.
 
 ## Prepared answers
 
@@ -165,7 +176,7 @@ test:
 ### "Is it just an ensemble?"
 
 In form, the last step is a weighted sum; concede that. What separates it from an ensemble of existing scorers
-(slide 14):
+(slide 15):
 - **Same evidence, standard scorers:** the best tuned weighted sum loses by .008–.051.
 - **DIALS's learned terms, fixed weights:** keeps most of the gain. The gain is in the terms.
 - **Sign flip:** the learned label relation changes sign by domain, which no positive-weighted sum of similarity
