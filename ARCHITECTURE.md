@@ -544,6 +544,9 @@ mismatch between training and full-catalogue evaluation.
       evaluate.py    top_items, query_metrics, evaluate, subset (§12)
       __main__.py    python -m dials train | test
 
+The docstring at the top of `model.py` maps every buffer and parameter name to its symbol here (for example
+`history_sum` is $NX$, `mixing[i]` is $M_l$), and comments in the code cite the sections of this guide.
+
 Data flow for one training run:
 
 1. `data.load` reads the splits, the features $X$, the labels and the clean test queries.
