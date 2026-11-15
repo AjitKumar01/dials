@@ -6,6 +6,7 @@ completion. Given some items of a bundle (the seeds), rank the whole catalogue f
 One configuration, unchanged across eight datasets, with 41,624 trained parameters (41,978 with two label levels).
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
+- [PIPELINE.md](PIPELINE.md) follows one dataset through the code, from raw files to test scores, naming every function and variable.
 - [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes CLHE, RaMen, the simple baselines and DIALS in one notation.
 - [RESULTS.md](RESULTS.md) has every result: against simple and neural baselines, under DDBC's protocol, the
   second-hop ablation, and model sizes.
