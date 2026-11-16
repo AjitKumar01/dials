@@ -11,3 +11,6 @@ runs_v1_features/
 # LaTeX build files
 *.aux
 *.log
+# paper previews and build files
+paper/figs/*_prev*.png
+*.out
