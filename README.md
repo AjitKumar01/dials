@@ -7,6 +7,7 @@ One configuration, unchanged across eight datasets, with 41,624 trained paramete
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
 - [FORWARD_PASS.md](FORWARD_PASS.md) follows one real Electronic bundle through `DIALS.forward`, with the code and the trained model's actual numbers at every step.
+- [SPARSE_GRAPH.md](SPARSE_GRAPH.md) explains how the graph term is computed from sparse storage: the goal of each step, then how the code does it, on a 5-item toy example.
 - [PIPELINE.md](PIPELINE.md) follows one dataset through the code, from raw files to test scores, naming every function and variable.
 - [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes CLHE, RaMen, the simple baselines and DIALS in one notation.
 - [RESULTS.md](RESULTS.md) has every result: against simple and neural baselines, under DDBC's protocol, the

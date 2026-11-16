@@ -309,6 +309,15 @@ Content scores the target above the three competitors, but 26 other items score 
 - **Low rank:** *which categories go with which*, for example "DVD drives go with hard drives".
 - **Diagonal:** a learned bonus (or penalty) when c's category is *the same as* a seed's category.
 
+**Why "low rank" and "diagonal".** Picture a 479 × 479 table R whose entry R_gg' says how well a seed of category g
+supports a candidate of category g'. DIALS writes it as R = P M Qᵀ + Δ. The first matrix has rank at most 16. The
+second sits only on the main diagonal, the entries R_gg where the seed's category and the candidate's category are the
+same. That is the "same category" case, so the bonus δ fills the diagonal. The two parts do different jobs. A rank-16
+matrix cannot store 479 separate same-category effects, since it is built from just 16 directions. The diagonal can,
+one entry per category. One difference from a fixed matrix: an entry of Δ is not a stored number. δ computes it from
+m, |S| and the category size, so it changes from query to query. The name of the model (diagonal-plus-low-rank) comes
+from this split.
+
 ```
 L(S, c) = (t(S)/|S|) · P M Qᵀ [:, g(c)]  +  δ(log(1+m), log|S|, log(1+n_g(c))) · [m > 0]
 ```
@@ -321,6 +330,25 @@ They are computed once by `cross_fitted_labels` → `label_factors` and passed t
    category g appears in a training bundle with category g'.
 2. Each row and column is divided by the square root of its total: D^-½ Γᵀ N Γ D^-½. This stops big categories from
    dominating.
+
+   **D** is the 479 × 479 diagonal matrix of the row sums of N̄ = Γᵀ N Γ, floored at 1:
+   D = diag(max(N̄ 1, 1)), so D_g = Σ_g' N̄_gg'. N is symmetric, so N̄ is too, and row sums equal column sums. The
+   same D therefore scales both sides. Since N̄ 1 = Γᵀ N Γ 1 = Γᵀ N 1 = Γᵀ deg (each row of Γ has a single 1), D_g is
+   the total co-occurrence degree of category g: the sum of deg_c over the items c in g. In the code
+   (`label_factors`) it is `scale = sqrt(max(row sums, 1))`, and the matrix is `diags(1/scale) @ N̄ @ diags(1/scale)`.
+
+   On Electronic:
+
+   | Category | Items | D_g |
+   |---|---|---|
+   | 2, Internal Hard Drives | 32 | 220 |
+   | 131, Internal DVD Drives | 7 | 37 |
+   | 48, External DVD Drives | 8 | 31 |
+
+   Across categories D_g runs from 1 to 514, with a median of 14. 32 categories have no training pairs at all, and
+   the floor keeps them at 1 instead of dividing by zero. Entry by entry, N̂_gg' = N̄_gg' / √(D_g D_g'). For example,
+   N̄[131, 2] = 3 pairs becomes 3 / √(37 · 220) = 0.033, and N̄[48, 2] = 1 pair becomes 1 / √(31 · 220) = 0.012.
+   Without the scaling, the large categories would set every direction of the SVD.
 3. A rank-16 truncated SVD gives U Σ Vᵀ. Then P = U Σ^½ and Q = V Σ^½ (each 479 × 16), so P Qᵀ ≈ the normalized
    category co-occurrence matrix.
 
@@ -363,11 +391,24 @@ Read it from left to right:
 
 - `mean @ P`: (1 × 479)(479 × 16) → 1 × 16. This averages the P rows of categories 48 and 131. Those two rows are
   nearly parallel (first four entries: 0.029, 0.010, 0.001, −0.033 for 48; 0.031, 0.011, 0.001, −0.036 for 131). The
-  SVD has learned that the two DVD-drive categories behave alike.
+  two DVD-drive categories co-occur with the same other categories in the training bundles, so the SVD gives them
+  similar rows.
 - `@ M`: (1 × 16)(16 × 16) → 1 × 16, the query vector in "candidate" coordinates. Its length is 0.21.
-- `Q[labels]`: for every item, the Q row of its category, 3499 × 16. `.T` makes it 16 × 3499.
-- The product is 1 × 3499: the low-rank score of every item. **All items in the same category get the same low-rank
-  score.**
+- `Q[labels]`: this step turns 479 category rows into 3,499 item rows. Q itself is 479 × 16, one row per
+  **category**. `labels` is a length-3,499 vector holding each **item's** category number: `labels[943] = 2`,
+  `labels[717] = 29`, `labels[2775] = 130`. Indexing a matrix with a vector of row numbers (PyTorch "advanced
+  indexing") returns one row per entry of the vector:
+
+  ```
+  Q[labels][c] = Q[labels[c]]      for c = 0 … 3498
+  Q[labels][943] = Q[2]            (the hard drive gets the "Internal Hard Drives" row: 0.0765, 0.0264, 0.0023, …)
+  ```
+
+  So `Q[labels]` is 3499 × 16. Row c is the Q row of item c's category, and items in the same category get identical
+  copies. In matrix terms it is Γ Q, where Γ is the 3499 × 479 one-hot item-to-category matrix of §6.1. Indexing gives
+  the same result without building Γ. `.T` then makes it 16 × 3499.
+- The product is (1 × 16)(16 × 3499) → 1 × 3499: the low-rank score of every item. Since items in the same category
+  share a Q row, **all items in the same category get the same low-rank score.**
 
 On this query the low-rank scores run from −0.057 to 0.104. They are small next to content (≈ 5) and graph (≈ 1.7).
 
@@ -376,8 +417,10 @@ m=tally[:,labels]
 row,col=m.nonzero(as_tuple=True)
 ```
 
-**`m[j, c]` is the number of seeds that share item c's category.** `tally[:, labels]` reads each item's category
-count out of the tally. Here m = 1 for the 15 items in category 48 or 131 (including the two seeds) and 0 for all
+**`m[j, c]` is the number of seeds that share item c's category.** This is the same indexing trick as `Q[labels]`,
+applied to columns. `tally` is q × 479, one column per category. `tally[:, labels]` picks, for each of the 3,499
+items, the column of its category, so `m` is q × 3499 and `m[j, c] = tally[j, labels[c]]`. For the hard drive,
+`m[0, 943] = tally[0, 2] = 0`, because no seed is in category 2. Here m = 1 for the 15 items in category 48 or 131 (including the two seeds) and 0 for all
 others. `nonzero` lists those 15 (query, item) positions. The diagonal is evaluated only there.
 
 ```python
@@ -391,8 +434,9 @@ if len(row):
 return out
 ```
 
-For each of the 15 positions, three inputs are built: log(1 + m), log|S| and log(1 + size of that category). The
-small MLP δ maps them to one number, and `index_put(..., accumulate=True)` **adds** it to the low-rank score at that
+For each of the 15 positions, three inputs are built: log(1 + m), log|S| and log(1 + size of that category).
+The category size uses the same indexing twice: `labels[col]` gives the category of each listed item, and
+`label_size0[...]` (length 479, one entry per category) looks up that category's log(1 + n_g). The small MLP δ maps them to one number, and `index_put(..., accumulate=True)` **adds** it to the low-rank score at that
 position.
 
 What the trained δ learned (with |S| = 2):
@@ -409,12 +453,17 @@ negative, because a big category like "cases" gives no specific hint. The sign i
 
 | Item | Shares a seed's category? | Low rank | Diagonal | L |
 |---|---|---|---|---|
-| **943 hard drive** (label 2) | no | −0.0048 | — | **−0.0048** |
-| 717 power supply (label 29) | no | −0.0098 | — | −0.0098 |
-| 2775 memory (label 130) | no | −0.0076 | — | −0.0076 |
-| 2982 processor (label 115) | no | −0.0037 | — | −0.0037 |
-| 1697 Sony slim DVD drive (label 48) | yes, m = 1, size 8 | | | 0.314 |
-| 3317 LG DVD rewriter (label 131) | yes, m = 1, size 7 | | | 0.365 |
+| **943 hard drive** (label 2) | no | −0.0048 | 0 (m = 0, not evaluated) | **−0.0048** |
+| 717 power supply (label 29) | no | −0.0098 | 0 (m = 0, not evaluated) | −0.0098 |
+| 2775 memory (label 130) | no | −0.0076 | 0 (m = 0, not evaluated) | −0.0076 |
+| 2982 processor (label 115) | no | −0.0037 | 0 (m = 0, not evaluated) | −0.0037 |
+| 1697 Sony slim DVD drive (label 48) | yes, m = 1, size 8 | −0.0015 | +0.3151 | 0.3136 |
+| 3317 LG DVD rewriter (label 131) | yes, m = 1, size 7 | −0.0025 | +0.3679 | 0.3653 |
+
+Every item gets a low-rank score, because every item has a category. Only items whose category matches a seed's
+get a diagonal score. For the other 3,484 items, m = 0 and δ is never evaluated, so that part is exactly 0. All
+items in category 48 get the same L of 0.3136 (the seed 2708 included), and the same holds for category 131 at 0.3653.
+The size-8 category earns a slightly smaller bonus than the size-7 one, as the δ table above predicts.
 
 On its own, the label term would rank the hard drive **1,340th**: it prefers more DVD drives. In this bundle the
 label term is close to silent. It moves the four items we follow by less than 0.02 after weighting, and the decision
@@ -434,6 +483,8 @@ the diagonal matrix of degrees. The code never builds that matrix. It touches on
 so the cost is the number of partners (here 16), not 3,499.
 
 ### 7.1 Finding the seeds' partners: `expand`
+
+[SPARSE_GRAPH.md](SPARSE_GRAPH.md) walks through this whole section on a 5-item toy example.
 
 ```python
 alpha,beta=self.exponents
@@ -455,6 +506,31 @@ def expand(self,query,rows):
     return torch.repeat_interleave(query,length),torch.repeat_interleave(rows,length),edge
 ```
 
+**What it is for.** In matrix terms, the graph term needs the rows N[1912, :] and N[2708, :] of the item-item count
+matrix. N is stored in CSR form (§3): one long list `target`/`counts` of every stored pair, sorted by source item, with
+`pointer` marking where each item's block begins. Row s is the slice `pointer[s] : pointer[s+1]` of that list. An
+**edge** is a position in that list, so one edge is one nonzero N_sc. `expand` returns the positions of all nonzeros in
+the seed rows, laid end to end:
+
+```
+edge = [7878, 7879, …, 7886,  11021, …, 11027]      (= arange(7878, 7887) followed by arange(11021, 11028))
+```
+
+A Python loop over seeds would build exactly this. `expand` builds it in one vector operation, which matters in
+training, where a batch holds hundreds of seeds.
+
+**How it does that, and what `offsets` is.** Number the output slots k = 0 … 15. Seed j owns a run of `length[j]`
+consecutive slots, and **`offsets[j]` is the slot where that run begins**: the total length of all earlier runs, i.e.
+an exclusive running sum (`cumsum(length) - length`). Inside seed j's run, slot k must hold
+
+```
+edge[k] = start[j] + (k - offsets[j])          (k - offsets[j] is the position within seed j's block)
+        = (start[j] - offsets[j]) + k
+```
+
+The code computes the two terms of the last line separately. `repeat_interleave(start - offsets, length)` writes
+`start[j] - offsets[j]` into each of seed j's slots, and `arange(16)` supplies k.
+
 With our numbers:
 
 | Variable | Value | Meaning |
@@ -464,6 +540,9 @@ With our numbers:
 | `offsets` | [0, 9] | where each seed's block begins in the output |
 | `start - offsets` | [7878, 11012] | repeated 9 and 7 times, then 0..15 is added |
 | `edge` | 7878…7886, 11021…11027 | the 16 stored-pair indices |
+
+Check slot by slot. Slots 0–8 give 7878 + k = 7878 … 7886. Slots 9–15 give 11012 + k = 11021 … 11027. Without
+subtracting `offsets`, slot 9 would be 11021 + 9 = 11030, which lies past the end of seed 2708's block.
 
 The outputs are three length-16 vectors: the query of each pair (all 0), its seed (1912 × 9, 2708 × 7) and its index
 into `target`/`counts`. This is a loop-free way of writing "for each seed, for each partner".
