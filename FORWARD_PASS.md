@@ -31,6 +31,21 @@ explained at the point where it is first used. The loss and the optimizer are no
 Electronic test query 20 has two visible items (the **seeds**) and one hidden item (the **target**). The model must
 find the target among all 3,499 catalogue items.
 
+**What the 3,499 items are.** They are every distinct item that occurs in any bundle of BundleRec's Electronic file
+(`bundle_item.csv`), across training, validation and test. `data.load_resplit` renumbers them 0 to 3,498 *before* it
+splits the bundles, so the catalogue is fixed first and the split happens inside it:
+
+| Items | Count | What the model knows about them |
+|---|---|---|
+| in at least one training bundle | 2,819 (80.6%) | features, category, co-occurrence counts, partner history |
+| only in validation or test bundles | 680 (19.4%) | features and category only: f = 0, no partners, h = 0 |
+| of those 680: only in validation / only in test / in both | 200 / 438 / 42 | |
+
+So the 3,499 are not just the training items. The 680 items never seen in training are still candidates in every
+query, and the model has to score them from their title features and category alone. This is the "cold" case that
+the content and label terms exist for. Every item in the catalogue occurs in at least one bundle. The catalogue holds
+no item that was never bundled. That is a property of the benchmark and is the same for every compared method.
+
 | Role | Item ID | Title (shortened) | Category | f (training bundles containing it) |
 |---|---|---|---|---|
 | seed | 1912 | Lite-On 24X SATA DVD±RW drive | Internal DVD Drives (label 131) | 4 |
