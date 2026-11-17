@@ -313,7 +313,7 @@ Clothing & lab.+kNN+cont. & .446 / .333 & .241 / .186 & .238 / .191 & \textbf{.5
 POG\_DENSE & RP3$\beta$ & .345 / .241 & .349 / .248 & -- & \textbf{.376 / .280} & +.040 [.036, .043]\\
 POG & lab.+kNN+cont. & .036 / .023 & .026 / .017 & .038 / .023$^\dagger$ & \textbf{.054 / .031} & +.008 [.006, .010]\\
 Spotify\_sparse & lab.+kNN+cont. & .147 / .205 & .097 / .115 & -- & \textbf{.184 / .256} & +.051 [.046, .056]\\
-Spotify & lab.+kNN+cont. & .147 / .247 & (.179)$^\ddagger$ & .109 / .188$^\dagger$ & \textbf{.167 / .282} & +.036 [.031, .040]\\
+Spotify & lab.+kNN+cont. & .147 / .247 & .108 / .179$^\ddagger$ & .109 / .188$^\dagger$ & \textbf{.167 / .282} & +.036 [.031, .040]\\
 \midrule
 \multicolumn{2}{l}{Trained parameters} & -- & 0.75\,M--29\,M & 1.3\,M--67\,M & 41.6\,k & \\
 \bottomrule
@@ -330,6 +330,8 @@ on POG to +.055 on Clothing, and every interval excludes zero. The smallest marg
 where CLHE was rerun; on POG\_DENSE, CLHE is slightly ahead. On e-commerce, CLHE and RaMen trail the best simple
 baseline by .04--.15 NDCG@20. This agrees
 with earlier findings in recommendation \cite{dacrema}, and it means that a gain over CLHE or RaMen alone says little.
+
+\paragraph{CLHE and RaMen.} Our CLHE reruns are close to the numbers RaMen reports for CLHE on the same split files: .026 / .017 against .028 / .019 on POG, and .108 / .179 against .108 / .181 on Spotify. On these two datasets RaMen's published numbers are above CLHE's (.038 / .023 on POG, .109 / .188 on Spotify), as RaMen reports. On e-commerce, where we rerun both with training-only graphs, the two are close to each other.
 
 \paragraph{Labels help simple methods too, but do not explain DIALS's lead.} A label-aware method is the best simple
 baseline on five datasets, so labels carry real signal. DIALS uses the same labels and still leads each of them.
@@ -349,10 +351,19 @@ graph from training bundles only. We report the latter, which uses the same info
 We retrain DIALS with one part removed at a time, with the same configuration and seeds, on the six datasets other
 than full Spotify, where one training run takes 1--1.5\,h of CPU time (Table~\ref{tab:ablation}).
 
+Co-occurrence, leave-one-out training and content help on all six datasets; co-occurrence most on e-commerce. Without
+leave-one-out a training bundle's own pairs stay in its counts, and the model learns to read the answer from them
+(training loss 2.6 against 6.9 on POG\_DENSE). The gate matters on the small e-commerce catalogues. The label terms
+matter on playlists, almost entirely through the same-label diagonal (a track by a seed's artist); elsewhere they add
+at most .015, not significant after correction. The low-rank label part and cross-fitting change NDCG@20 by at most
+.006 anywhere: cross-fitting prevents a leak in principle, but we cannot measure one here.
+
 \begin{table}[t]
 \centering
-\caption{Ablations: NDCG@20 of the full model minus the ablated model, clean test queries, three seeds. Positive:
-the part helps. Bold: Holm-corrected $p<0.05$ (12 tests per row). [TO BE FILLED WHEN THE RUNS FINISH]}
+\caption{Ablations: NDCG@20 of the full model minus the ablated model, clean test queries, three seeds per side.
+Positive: the part helps. Bold: Holm-corrected $p<0.05$ (12 tests per row: 6 datasets $\times$ NDCG@20 and
+Recall@20). First row: NDCG@20 of the full model. Without leave-one-out, training on POG\_DENSE diverged after 12--13
+epochs; its best validation epoch is used.}
 \label{tab:ablation}
 \setlength{\tabcolsep}{3pt}
 \scriptsize
@@ -360,15 +371,17 @@ the part helps. Bold: Holm-corrected $p<0.05$ (12 tests per row). [TO BE FILLED 
 \toprule
 Removed part & Electronic & Food & Clothing & POG\_DENSE & POG & Spotify\_sparse\\
 \midrule
-same-label diagonal $\deltab_l$ & & & & & & \\
-related-label low rank ($M=0$) & & & & & & \\
-cross-fitting of $P,Q$ & & & & & & \\
-leave-one-out statistics & & & & & & \\
-gate (all weights 1) & & & & & & \\
-content term & & & & & & \\
-label terms & & & & & & \\
-graph term & & & & & & \\
-training (initial parameters) & & & & & & \\
+\emph{full model (NDCG@20)} & .335 & .439 & .388 & .280 & .031 & .256\\
+\midrule
+same-label diagonal $\deltab_l$ & .000 & .013 & .015 & .001 & .001 & \textbf{.086}\\
+related-label low rank ($M=0$) & .003 & .002 & $-$.002 & \textbf{.002} & .001 & .000\\
+cross-fitting of $P,Q$ & .006 & .000 & .000 & .000 & .000 & .000\\
+leave-one-out statistics & \textbf{.056} & \textbf{.139} & \textbf{.138} & \textbf{.073} & \textbf{.010} & \textbf{.112}\\
+gate (all weights 1) & \textbf{.057} & \textbf{.032} & \textbf{.036} & \textbf{.002} & .001 & \textbf{.008}\\
+content term & \textbf{.044} & \textbf{.092} & \textbf{.101} & \textbf{.022} & \textbf{.007} & \textbf{.016}\\
+label terms & .004 & .014 & .015 & \textbf{.005} & \textbf{.002} & \textbf{.088}\\
+graph term & \textbf{.177} & \textbf{.155} & \textbf{.136} & \textbf{.017} & \textbf{.018} & \textbf{.059}\\
+training (initial parameters) & \textbf{.205} & \textbf{.257} & \textbf{.258} & \textbf{.179} & \textbf{.030} & \textbf{.117}\\
 \bottomrule
 \end{tabular}
 \end{table}
