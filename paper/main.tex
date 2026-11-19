@@ -69,8 +69,7 @@ evidence: seeds seen in many bundles have reliable counts, and seeds seen in non
 A model should therefore learn how to weigh shared evidence, not what each item is.
 
 \textbf{TRIAD} is built on this view. It scores a candidate by three relations to the seeds (content, labels and
-co-occurrence), combined by a gate that reads how familiar the seeds are (Fig.~\ref{fig:intro}c). It has 41,368
-parameters and none belongs to an item, so a never-bundled item is scored by the same function as any other. Because
+co-occurrence), combined by a gate that reads how familiar the seeds are (Fig.~\ref{fig:intro}c). Because
 its main signal is co-occurrence, training needs care: a training bundle sits inside the very counts used to score
 it, and a model trained that way learns to trust counts that, at test time, do not exist. TRIAD therefore removes each
 training bundle from its own statistics.
@@ -81,9 +80,12 @@ items that occur in some bundle, so an item absent from every training bundle is
 target, and any model trained against the full catalogue can learn this. We make this explicit, give the simple
 baselines the same advantage, and measure TRIAD without it. Our contributions:
 \begin{itemize}
-\item \textbf{A model of shared relations,} with no per-item parameters and leakage-free training, that learns
-readable rules: a shared category is penalized in outfits and a shared artist rewarded in playlists, without being
-told.
+\item \textbf{A relation-based architecture for bundle completion.} Three learned relation functions (a bilinear
+content map over item features and partner histories, a label function whose sign and strength are learned per
+domain, and a co-occurrence term with learned degree discounts) are combined by a gate driven by how familiar the seeds
+are. No parameter belongs to an item, so the model's size does not depend on the catalogue (41,368 parameters); it is
+trained without leakage, and its learned rules are readable: a shared category is penalized in outfits and a shared
+artist rewarded in playlists.
 \item \textbf{A matched evaluation} against CLHE, RaMen, Bundle-MLLM and DDBC, under our protocol and under theirs,
 with thirteen tuned simple baselines. Tuned simple methods match or beat CLHE, RaMen and DDBC, though not
 Bundle-MLLM. TRIAD scores above all four, and goes beyond the simple methods exactly where bundles
@@ -126,9 +128,6 @@ its answer \cite{kapoor2023}; TRIAD removes each training bundle from its own co
 % =====================================================================================================================
 \section{Method}
 \label{sec:method}
-
-TRIAD turns the view of the introduction into a score: three relations, each a small function of statistics shared
-by all items, weighted per query.
 
 \paragraph{Notation.} The catalogue has $n$ items. Item $c$ has a feature vector $x_c$ (rows of $X\in\R^{n\times d}$,
 unit length) and, at each label level $l$, a label $g_l(c)$: the category for fashion and e-commerce, artist and album
@@ -203,15 +202,14 @@ levels) are 32,768 in the content maps, 8,352 in the encoder and 248--346 in the
 independent of $n$. Setup computes the counts once; a query reads $\sum_{s\in S}\deg_s$ stored counts and one
 $64\times n$ product.
 
-\paragraph{What is new relative to simple scorers.} At initialization TRIAD is close to a fixed sum of feature
-similarity and raw co-occurrence counts, the kind of scorer our simple baselines tune by grid search. It differs in
-four ways: (i) the trust placed in each signal depends on the query through the gate, instead of one weight per
-dataset; (ii) the degree discounts, the popularity prior and the sign and strength of the label rule are learned
-jointly, instead of tuned one method at a time; (iii) the content term is asymmetric and also compares the seeds with
-a candidate's partner history, so it can score complements, not only look-alikes; (iv) leave-one-out statistics make
-it possible to fit all of this on co-occurrence without learning to read the answer. The ablations measure (i) and
-(iv) directly (removing them costs up to .065 and .165 NDCG@20), and training as a whole adds .030 to .179 over the
-starting point (Table~\ref{tab:ablation}).
+\paragraph{How TRIAD differs from a tuned blend.} Unlike a simple scorer whose weights are set by grid search,
+TRIAD learns (i) how far to trust each signal for each query, through the gate, instead of one weight per dataset;
+(ii) the degree discounts, the popularity prior and the sign and strength of the label rule, jointly rather than one
+method at a time; and (iii) an asymmetric content relation that also compares the seeds with a candidate's partner
+history, so it can score complements, not only look-alikes. Leave-one-out statistics are what make it possible to fit
+all of this on co-occurrence without learning to read the answer. The ablations confirm the parts: removing the gate
+costs up to .065 NDCG@20, removing leave-one-out up to .165, and training as a whole adds .030 to .179 over the
+untrained model (Table~\ref{tab:ablation}).
 
 % =====================================================================================================================
 \section{Experimental Setup}
@@ -274,9 +272,6 @@ the bonus ($\rho$ of $f=0$ items set to its value at $f=1$).
 
 % =====================================================================================================================
 \section{Results}
-
-We ask whether shared relations are enough to beat per-item models and tuned simple methods, what explains the gains
-on small e-commerce sets, whether the picture holds under the other papers' own protocols, and when learning pays off.
 
 \begin{table}[t]
 \centering
