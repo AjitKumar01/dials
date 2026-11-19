@@ -348,7 +348,7 @@ HitRate@1 & TRIAD & TRIAD w/o bonus & Simple & Bundle-MLLM & CLHE\\
 POG\_DENSE & \textbf{.771} & .743 & .617 & .668 & .637\\
 POG & \textbf{.624} & .513 & .306 & .413 & .348\\
 Spotify\_sparse & \textbf{.814} & .816 & .641 & .796 & .723\\
-Spotify & \textbf{.841} & .841 & SPOTSIMPLE & .824 & .757\\
+Spotify & \textbf{.841} & .841 & .759 & .824 & .757\\
 \midrule
 F1 / Jaccard & TRIAD & TRIAD w/o bonus & Simple & DDBC (rerun) & Best in DDBC's paper\\
 \midrule
@@ -366,9 +366,8 @@ Spotify $k{=}90$ & \textbf{.651 / .501} & .651 / .501 & blend .561 / .412 & .278
 were trained on: its prompts use English item titles that are not released, and it uses BLIP2 image features released
 only for POG. Against its published numbers TRIAD is ahead by .10--.21 on POG and POG\_DENSE, and by .017 and .018 on
 the two Spotify sets, about two standard errors of a 2,048-question estimate, so we do not claim the Spotify margins as
-significant. Here the tuned simple methods fall \emph{below} Bundle-MLLM, likely because negatives come from the
-whole catalogue and a co-occurrence score has nothing to rank an $f=0$ target above them; the gap is largest on POG,
-where 59\% of targets have $f=0$. \emph{DDBC} splits windows of our test
+significant. Here the tuned simple methods fall \emph{below} Bundle-MLLM, by .05--.16 on all four datasets, while
+TRIAD is ahead of them by .08--.32 on the same questions (all $p<.001$). \emph{DDBC} splits windows of our test
 bundles 1:1 into seeds and targets and ranks the targets among 99 random items each. Its checkpoints reproduce its
 published F1 on its own pools (.137--.278 against .139--.287), yet a tuned simple method triples it on POG\_DENSE and
 roughly doubles it on Spotify, and TRIAD is higher still. The unseen-item bonus changes F1 by at most .001 here.

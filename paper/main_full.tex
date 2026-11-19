@@ -633,7 +633,9 @@ with its published numbers. Negatives are drawn from the whole catalogue, where 
 matters: without it TRIAD scores .513 on POG and .743 on POG\_DENSE, still above the published numbers. Bundle-MLLM
 also reports Spotify and Spotify\_sparse. It shows the model at most 5 of a playlist's input items, drawn at random for each question, so TRIAD scores each question from the same at most 5
 seeds; we score a fixed sample of 8,192 questions per dataset. TRIAD reaches .841 and .814 against Bundle-MLLM's .824
-and .796, smaller margins than on POG, and the bonus makes no difference there. These two margins are about two
+and .796, smaller margins than on POG, and the bonus makes no difference there. The best simple baseline of
+Table~\ref{tab:tests}, scored on exactly the same questions, falls below Bundle-MLLM on all four datasets (.617, .306,
+.641, .759), and TRIAD is ahead of it by .08--.32 (paired cluster tests, Holm over four, all $p<.001$). These two margins are about two
 standard errors of a 2,048-question estimate, so we do not claim them as significant; on POG and POG\_DENSE the
 margins are more than ten.
 
@@ -660,12 +662,12 @@ same way (without the frequency prior). $^\S$At most 5 seeds per question, drawn
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
-HitRate@1 & TRIAD & TRIAD w/o bonus & Bundle-MLLM & CLHE & \\
+HitRate@1 & TRIAD & TRIAD w/o bonus & Bundle-MLLM & CLHE & Simple baseline\\
 \midrule
-POG & \textbf{.624} & .513 & .413 & .348 & \\
-POG\_DENSE & \textbf{.771} & .743 & .668 & .637 & \\
-Spotify\_sparse$^\S$ & \textbf{.814} & .816 & .796 & .723 & \\
-Spotify$^\S$ & \textbf{.841} & .841 & .824 & .757 & \\
+POG & \textbf{.624} & .513 & .413 & .348 & lab.+kNN+cont. .306\\
+POG\_DENSE & \textbf{.771} & .743 & .668 & .637 & RP3$\beta$ .617\\
+Spotify\_sparse$^\S$ & \textbf{.814} & .816 & .796 & .723 & lab.+kNN+cont. .641\\
+Spotify$^\S$ & \textbf{.841} & .841 & .824 & .757 & lab.+kNN+cont. .759\\
 \midrule
 F1 / Jaccard & TRIAD & TRIAD w/o bonus & DDBC (rerun) & Simple baseline & Best in DDBC's paper\\
 \midrule
