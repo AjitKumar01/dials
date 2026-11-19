@@ -211,8 +211,8 @@ are then removed from the ranking.
 
 | $\cos(s,c)$ | tee | jeans | boots | belt | scarf |
 |---|---|---|---|---|---|
-| **jeans** (row used for seed jeans) | $2/\sqrt{28}$ = .378 | — | $2/\sqrt{12}$ = .577 | $1/\sqrt{12}$ = .289 | 0 |
-| **belt** (row used for seed belt) | $2/\sqrt{21}$ = .436 | $1/\sqrt{12}$ = .289 | $1/\sqrt{9}$ = .333 | — | 0 |
+| **jeans** (row used for seed jeans) | $2/\sqrt{28}$ = .378 | n/a | $2/\sqrt{12}$ = .577 | $1/\sqrt{12}$ = .289 | 0 |
+| **belt** (row used for seed belt) | $2/\sqrt{21}$ = .436 | $1/\sqrt{12}$ = .289 | $1/\sqrt{9}$ = .333 | n/a | 0 |
 
 - **One seed, $S=\{\text{jeans}\}$:** the scores are the jeans row. Boots .577 > tee .378 > belt .289.
   - Co-occurrence tied tee and boots at 2. The cosine breaks the tie, because tee's 2 shared bundles come out of 7
@@ -525,11 +525,11 @@ Test NDCG@20 on clean queries, each method at its validation setting:
 | Dunnhumby | .057 | .094 | .102 | .103 | .104 | .080 | .104 | .081 | **.104** | .102 |
 | POG_DENSE | .156 | .240 | .208 | **.241** | .228 | .230 | .237 | .191 | .208 | .280 |
 | POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0306 |
-| Spotify_sparse | .006 | .139 | .148 | .149 | — | .099 | .138 | .130 | **.153** | .256 |
-| Spotify | .022 | .160 | .219 | .210 | — | .173 | .195 | .210 | **.223** | .282 |
+| Spotify_sparse | .006 | .139 | .148 | .149 | n/a | .099 | .138 | .130 | **.153** | .256 |
+| Spotify | .022 | .160 | .219 | .210 | n/a | .173 | .195 | .210 | **.223** | .282 |
 
 - **Bold** marks the best simple baseline by validation, the one TRIAD is tested against.
-- "—" means EASE was not run (more than 40,000 items).
+- "n/a" means EASE was not run (more than 40,000 items).
 - On Dunnhumby the blend, SGFCF and EASE all round to .104.
 - **Content matters most on e-commerce.** Adding BLIP title content lifts ItemKNN by .05 to .18. There the bundles are small and the
   catalogue is mostly cold.
@@ -773,7 +773,7 @@ the share of unseen seeds rises.
 | Per-item parameters | none | $2\times64$ | $4\times64$ | none |
 | Trained parameters (POG) | 0 to a few | 9.48M | 16.1M | 41.4k |
 | Training (POG, 4 CPU threads) | seconds to minutes | 85 min | about 71 min | 12–15 min |
-| Leakage control | statistics from training only | — | — | leave-one-out |
+| Leakage control | statistics from training only | n/a | n/a | leave-one-out |
 
 ## 7. What the comparison shows
 
