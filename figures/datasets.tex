@@ -30,19 +30,19 @@
 \begin{scope}[shift={(0,0)}]
 \panel{0}{0}{\H}{Electronic \quad\normalfont\small Amazon product bundles}
 \chain{2.1}{-0.4}{bundle/bundle (median 3 items),item/product \;·\; 3{,}499,used/category path \;·\; 479,unused/5 path levels above\\[-1pt]{\scriptsize 2 $\to$ 14 $\to$ 80 $\to$ 201 $\to$ 189}}{contains,has,is inside}
-\node[stat] at (4.5,-0.05) {train 1{,}211 bundles\\val 173 \;·\; test 346 queries\\seeds 2 $\to$ held out 1\\81\% of items in training\\features: TF-IDF of titles\\(none released)};
+\node[stat] at (4.5,-0.05) {train 1{,}211 bundles\\val 173 \;·\; test 346 queries\\seeds 2 $\to$ held out 1\\81\% of items in training\\features: BLIP text of\\titles (computed by us)};
 \end{scope}
 \begin{scope}[shift={(10,0)}]
 \panel{0}{0}{\H}{Food \quad\normalfont\small Amazon grocery bundles}
 \chain{2.1}{-0.4}{bundle/bundle (median 3 items),item/product \;·\; 3{,}767,used/category path \;·\; 836,unused/5 path levels above\\[-1pt]{\scriptsize 11 $\to$ 40 $\to$ 200 $\to$ 427 $\to$ 250}}{contains,has,is inside}
-\node[stat] at (4.5,-0.05) {train 1{,}232 bundles\\val 176 \;·\; test 353 queries\\seeds 2 $\to$ held out 1\\79\% of items in training\\features: TF-IDF of titles\\(none released)};
+\node[stat] at (4.5,-0.05) {train 1{,}232 bundles\\val 176 \;·\; test 353 queries\\seeds 2 $\to$ held out 1\\79\% of items in training\\features: BLIP text of\\titles (computed by us)};
 \end{scope}
 % ---------------------------------------------------------------- row 2
 \begin{scope}[shift={(0,-6.1)}]
 \panel{0}{0}{\H}{Clothing \quad\normalfont\small Amazon fashion bundles}
 \chain{2.1}{-0.4}{bundle/bundle (median 3 items),item/product \;·\; 4{,}487,used/category paths \;·\; 2{,}033,unused/5 path levels above\\[-1pt]{\scriptsize 9 $\to$ 82 $\to$ 181 $\to$ 230 $\to$ 300}}{contains,has,is inside}
 \node[note] at (4.5,-2.9) {62\% of products have several\\category paths; the label is\\the whole set, so most labels\\hold a single product};
-\node[stat] at (4.5,-0.05) {train 1{,}294 bundles\\val 184 \;·\; test 371 queries\\seeds 2 $\to$ held out 1\\77\% of items in training\\features: TF-IDF of titles\\(none released)};
+\node[stat] at (4.5,-0.05) {train 1{,}294 bundles\\val 184 \;·\; test 371 queries\\seeds 2 $\to$ held out 1\\77\% of items in training\\features: BLIP text of\\titles (computed by us)};
 \end{scope}
 \begin{scope}[shift={(10,-6.1)}]
 \panel{0}{0}{\H}{Dunnhumby \quad\normalfont\small grocery baskets}
@@ -76,7 +76,7 @@
 \end{scope}
 % ---------------------------------------------------------------- legend
 \begin{scope}[shift={(0,-24.3)}]
-\node[used,minimum width=1.1cm] at (0.6,0) {};\node[stat,anchor=west] at (1.4,0) {label level DIALS uses};
+\node[used,minimum width=1.1cm] at (0.6,0) {};\node[stat,anchor=west] at (1.4,0) {label level TRIAD uses};
 \node[textonly,minimum width=1.1cm] at (6.6,0) {};\node[stat,anchor=west] at (7.4,0) {in item text features only};
 \node[unused,minimum width=1.1cm] at (13.0,0) {};\node[stat,anchor=west] at (13.8,0) {in the data, not used};
 \node[stat,anchor=west,text=black!60,font=\scriptsize] at (0.0,-0.7) {Counts are distinct values; seeds and held out are median sizes of a test query; ``in training'' is the share of catalogue items in at least one training bundle.};

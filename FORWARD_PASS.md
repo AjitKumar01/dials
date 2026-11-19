@@ -1,12 +1,13 @@
-# The forward pass of DIALS, one bundle at a time
+# The forward pass of TRIAD, one bundle at a time
 
-This document follows **one real bundle** through `DIALS.forward` in `dials/model.py`, line by line. Every number
-below comes from the trained Electronic model (`runs/electronic/seed0`, best epoch 14). We ran the code on this
+This document follows **one real bundle** through `TRIAD.forward` in `triad/model.py`, line by line. Every number
+below comes from the trained Electronic model (`runs/electronic/seed0`, best epoch 7), and
+`paper/figdata/forward_numbers.py` prints them all. We ran the code on this
 bundle and printed each intermediate value. Adding the pieces up by hand gives exactly the model's output (the
 largest difference is 0.0).
 
 It covers only the forward pass: how a partial bundle becomes one score per catalogue item. Where the forward pass
-uses something built earlier (the co-occurrence counts, the label factors, the trained weights), that piece is
+uses something built earlier (the co-occurrence counts, the trained weights), that piece is
 explained at the point where it is first used. The loss and the optimizer are not covered.
 
 **Contents**
@@ -62,11 +63,11 @@ follow three items that compete with the target. They are the model's ranks 2, 3
 | 2982 | AMD Athlon X4 processor | CPU Processors (label 115) | 2 |
 
 The target's category differs from both seeds' categories. Keep this in mind: in this bundle the label term can't
-reward "same category as a seed", and we will see that it barely contributes.
+reward "same category as a seed", and we will see that it contributes nothing to the target.
 
 ## 2. The idea in one equation
 
-For a set of seeds S and every catalogue item c, DIALS computes one number (ARCHITECTURE.md §5):
+For a set of seeds S and every catalogue item c, TRIAD computes one number (ARCHITECTURE.md §5):
 
 ```
 s(c | S) = w_C(S) · C(S, c)  +  w_L(S) · L(S, c)  +  w_G(S) · G(S, c)
@@ -75,7 +76,7 @@ s(c | S) = w_C(S) · C(S, c)  +  w_L(S) · L(S, c)  +  w_G(S) · G(S, c)
 In plain words:
 
 - **C, content:** does c *look like* something that goes with the seeds? It uses the item's title features.
-- **L, labels:** does c's *category* go with the seeds' categories?
+- **L, labels:** does c *share a category* with a seed, and is that good or bad here?
 - **G, graph:** has c *appeared in training bundles together with* the seeds?
 - **w, the gate:** three positive weights, one per term. They are decided by the seeds themselves (how many there are,
   and how well known they are), so the model can lean on the graph for well-known seeds and on content for new ones.
@@ -85,7 +86,7 @@ three weights, then adds the weighted rows. The highest-scoring items that aren'
 
 ## 3. What exists before the forward pass starts
 
-The model object holds two kinds of things. Both are created in `DIALS.__init__` and neither changes during a forward
+The model object holds two kinds of things. Both are created in `TRIAD.__init__` and neither changes during a forward
 pass.
 
 ### 3.1 Fixed data, built from the training bundles (never trained)
@@ -95,7 +96,7 @@ d = 128 feature dimensions.
 
 | Name in code | Symbol | Shape | What it holds |
 |---|---|---|---|
-| `features` | X | 3499 × 128 | Each item's title features (TF-IDF projected to 128 numbers), rows scaled to length 1 |
+| `features` | X | 3499 × 128 | Each item's title features (BLIP text embedding projected to 128 numbers), rows scaled to length 1 |
 | `target`, `counts` | N | 13,788 each | The co-occurrence matrix N stored as a list of pairs; see below |
 | `pointer` | | 3,500 | Where each item's pairs start in that list |
 | `frequency` | f | 3,499 | f_c = number of training bundles containing c |
@@ -104,7 +105,6 @@ d = 128 feature dimensions.
 | `history_sum` | N X | 3499 × 128 | For each item, the sum of its partners' features, each weighted by the pair count |
 | `label0` | g(c) | 3,499 | Each item's category number (479 categories) |
 | `label_size0` | log(1 + n_g) | 479 | log(1 + number of items in each category) |
-| `label_left0`, `label_right0` | P, Q | 479 × 16 each | Fixed label factors from a spectral decomposition; see §6 |
 
 **How N is stored.** N_sc = the number of training bundles that contain both s and c. Most pairs never meet, so only
 the 13,788 non-zero (s, c) entries are kept. They are sorted by s. `target[e]` and `counts[e]` are the partner and the
@@ -137,21 +137,20 @@ The second one holds both seeds *and* the target. Our test bundle {1912, 2708, 9
 bundle, so it counts as a clean test query, but it is part of a larger training bundle. That is why the graph term
 does well here.
 
-### 3.2 Trained parameters (41,624 numbers)
+### 3.2 Trained parameters (41,368 numbers)
 
 | Name in code | Symbol | Shape | Used in |
 |---|---|---|---|
 | `encoder` | MLP | 128 → 32 → 128 (8,352 numbers) | content: refines X into Z |
 | `query_content`, `query_history` | A_z, A_h | 64 × 128 each | content: seed side |
 | `key_content`, `key_history` | B_z, B_h | 64 × 128 each | content: candidate side |
-| `mixing[0]` | M | 16 × 16 | labels: which categories go together |
-| `diagonal[0]` | δ | 3 → 16 → 1 | labels: bonus for sharing a seed's category |
+| `same_label[0]` | δ | 3 → 16 → 1 | labels: bonus (or penalty) for sharing a seed's category |
 | `exponents` | α, β | 2 | graph: degree discounts |
 | `theta` | θ | 1 | graph: scale |
 | `prior` | ρ | 1 → 16 → 1 | graph: popularity curve |
 | `gate` | | 3 → 16 → 3 | the three term weights |
 
-Trained values that matter in this walk-through: α = 0.0359, β = 0.1748, θ = 1.8922.
+Trained values that matter in this walk-through: α = 0.0556, β = 0.1331, θ = 1.8316.
 
 ## 4. Entering `forward`
 
@@ -177,7 +176,7 @@ def forward(self,seeds,bundles=None,cache=None):
 
 ```python
     parts=([self.content_scores(seeds,bundles,cache)]
-           +[self.label_scores(i,seeds,bundles) for i in range(self.levels)]
+           +[self.label_scores(i,seeds) for i in range(self.levels)]
            +[self.graph_scores(seeds,bundles,cache)])
 
     w=self.gate_weights(seeds,bundles)
@@ -232,14 +231,14 @@ def history(self):
 
 `content()` runs the small encoder MLP on every item's features, adds the result to the original features
 (a *residual* connection), and rescales each row to length 1. The encoder's last layer starts at zero, so at
-initialization Z = X exactly. After training it has moved a lot. For our seeds, ‖MLP(x)‖ is 1.30 and 1.49, larger
-than ‖x‖ = 1. The cosine between x and z is 0.60 for 1912 and 0.62 for 2708: z is still related to the title
-features, but quite different from them.
+initialization Z = X exactly. After training it has moved substantially. For our seeds, ‖MLP(x)‖ is 0.79 and 0.74,
+against ‖x‖ = 1. The cosine between x and z is 0.79 for 1912 and 0.82 for 2708: z is still close to the title
+features, but not the same.
 
 `history()` divides each row of N X by deg, giving the weighted mean of the partners' features. `clamp_min(1)` avoids
 dividing by zero. The final multiplication by `(history_mass>0)` sets the row to zero for items with no partners: an
-item never seen in a training bundle has no history. For our seeds, ‖h‖ = 0.44 and 0.46. These are averages of
-several unit vectors pointing in different directions, so they are shorter than 1.
+item never seen in a training bundle has no history. For our seeds, ‖h‖ = 0.77 and 0.78. These are averages of
+several unit vectors pointing in somewhat different directions, so they are shorter than 1.
 
 ```python
 def keys(self,z=None):
@@ -276,10 +275,10 @@ At evaluation, Z, H and the keys come from the cache (§10). They are the same t
 
 For query i with seeds `s = tensor([1912, 2708])`:
 
-- `z[s]` is 2 × 128, the two seeds' rows of Z. `z[s] @ A_zᵀ` is 2 × 64. Its rows have length 2.70 and 2.70.
-- `hs @ A_hᵀ` is 2 × 64. Its rows have length 0.22 each: the seeds' partner histories contribute about a tenth of
-  what their own features contribute.
-- The two rows are added and `.mean(0)` averages over the seeds: φ(S), 64 numbers, ‖φ‖ = 2.68.
+- `z[s]` is 2 × 128, the two seeds' rows of Z. `z[s] @ A_zᵀ` is 2 × 64. Its rows have length 2.91 and 2.95.
+- `hs @ A_hᵀ` is 2 × 64. Its rows have length 0.19 and 0.20: the seeds' partner histories contribute about a
+  fifteenth of what their own features contribute.
+- The two rows are added and `.mean(0)` averages over the seeds: φ(S), 64 numbers, ‖φ‖ = 2.82.
 
 ```python
     phi=torch.stack(phi)
@@ -293,73 +292,30 @@ For query i with seeds `s = tensor([1912, 2708])`:
 
 | Item | φᵀ B_z z_c (own title) | φᵀ B_h h_c (partners' titles) | C |
 |---|---|---|---|
-| **943 hard drive** | 5.320 | −0.137 | **5.182** |
-| 717 power supply | 4.457 | −0.133 | 4.324 |
-| 2775 memory | 4.265 | −0.104 | 4.161 |
-| 2982 processor | 3.589 | −0.130 | 3.459 |
+| **943 hard drive** | 6.787 | −0.129 | **6.658** |
+| 717 power supply | 5.815 | −0.165 | 5.650 |
+| 2775 memory | 5.625 | −0.091 | 5.534 |
+| 2982 processor | 5.320 | −0.116 | 5.204 |
 
-Over all items, C has mean 2.20 and standard deviation 1.32. Its largest value (6.06) is the seed 2708 itself; seeds
-are removed only at ranking time (§9). Counting only non-seeds, **content alone puts the hard drive at rank 27**.
-Content scores the target above the three competitors, but 26 other items score higher still.
+Over all items, C has mean 4.44 and standard deviation 0.93. Its largest value (7.29) is the seed 2708 itself; seeds
+are removed only at ranking time (§9). Counting only non-seeds, **content alone puts the hard drive at rank 37**.
+Content scores the target above the three competitors, but 36 other items score higher still, most of them more
+optical drives.
 
 ## 6. Term 2: labels (`label_scores`)
 
-**Question it answers:** "Does c's category go with the seeds' categories?" Two parts:
-
-- **Low rank:** *which categories go with which*, for example "DVD drives go with hard drives".
-- **Diagonal:** a learned bonus (or penalty) when c's category is *the same as* a seed's category.
-
-**Why "low rank" and "diagonal".** Picture a 479 × 479 table R whose entry R_gg' says how well a seed of category g
-supports a candidate of category g'. DIALS writes it as R = P M Qᵀ + Δ. The first matrix has rank at most 16. The
-second sits only on the main diagonal, the entries R_gg where the seed's category and the candidate's category are the
-same. That is the "same category" case, so the bonus δ fills the diagonal. The two parts do different jobs. A rank-16
-matrix cannot store 479 separate same-category effects, since it is built from just 16 directions. The diagonal can,
-one entry per category. One difference from a fixed matrix: an entry of Δ is not a stored number. δ computes it from
-m, |S| and the category size, so it changes from query to query. The name of the model (diagonal-plus-low-rank) comes
-from this split.
+**Question it answers:** "Does c share a category with a seed, and is that good or bad for this kind of bundle?"
 
 ```
-L(S, c) = (t(S)/|S|) · P M Qᵀ [:, g(c)]  +  δ(log(1+m), log|S|, log(1+n_g(c))) · [m > 0]
+L(S, c) = δ(log(1+m), log|S|, log(1+n_g(c))) · [m > 0]
 ```
 
-### 6.1 Where P and Q come from (built before training, not trained)
+m is the number of seeds in c's category and n_g(c) the number of catalogue items in that category. δ is a small MLP
+(3 → 16 → 1) whose sign is learned: on Electronic sharing a category is good, on POG outfits it is bad (ARCHITECTURE.md
+§14). Which *different* categories go together ("DVD drives with hard drives") is not in this term; the graph term
+holds that at the level of items (§7).
 
-They are computed once by `cross_fitted_labels` → `label_factors` and passed to the model when it is built:
-
-1. **Γ** (n × K) is the one-hot matrix "item c has category g". **Γᵀ N Γ** (K × K, here 479 × 479) counts how often
-   category g appears in a training bundle with category g'.
-2. Each row and column is divided by the square root of its total: D^-½ Γᵀ N Γ D^-½. This stops big categories from
-   dominating.
-
-   **D** is the 479 × 479 diagonal matrix of the row sums of N̄ = Γᵀ N Γ, floored at 1:
-   D = diag(max(N̄ 1, 1)), so D_g = Σ_g' N̄_gg'. N is symmetric, so N̄ is too, and row sums equal column sums. The
-   same D therefore scales both sides. Since N̄ 1 = Γᵀ N Γ 1 = Γᵀ N 1 = Γᵀ deg (each row of Γ has a single 1), D_g is
-   the total co-occurrence degree of category g: the sum of deg_c over the items c in g. In the code
-   (`label_factors`) it is `scale = sqrt(max(row sums, 1))`, and the matrix is `diags(1/scale) @ N̄ @ diags(1/scale)`.
-
-   On Electronic:
-
-   | Category | Items | D_g |
-   |---|---|---|
-   | 2, Internal Hard Drives | 32 | 220 |
-   | 131, Internal DVD Drives | 7 | 37 |
-   | 48, External DVD Drives | 8 | 31 |
-
-   Across categories D_g runs from 1 to 514, with a median of 14. 32 categories have no training pairs at all, and
-   the floor keeps them at 1 instead of dividing by zero. Entry by entry, N̂_gg' = N̄_gg' / √(D_g D_g'). For example,
-   N̄[131, 2] = 3 pairs becomes 3 / √(37 · 220) = 0.033, and N̄[48, 2] = 1 pair becomes 1 / √(31 · 220) = 0.012.
-   Without the scaling, the large categories would set every direction of the SVD.
-3. A rank-16 truncated SVD gives U Σ Vᵀ. Then P = U Σ^½ and Q = V Σ^½ (each 479 × 16), so P Qᵀ ≈ the normalized
-   category co-occurrence matrix.
-
-Each category thus becomes 16 numbers on the left (P, "as a seed") and 16 on the right (Q, "as a candidate"). Only the
-16 × 16 matrix **M** between them is trained. It starts at zero, so the low-rank part starts switched off. In the
-trained model ‖M‖ = 12.2 and the mean of its diagonal is 1.10.
-
-The evaluation forward pass uses `label_left0` and `label_right0`, computed from all training bundles. Training uses
-per-fold versions (§11).
-
-### 6.2 The code, step by step
+### 6.1 The code, step by step
 
 ```python
 labels=getattr(self,f'label{i}')   # g(c) for every item, length 3499
@@ -373,55 +329,21 @@ for j,s in enumerate(seeds):
 ```
 
 **`tally` is t(S): how many seeds carry each category.** `labels[s]` is `[131, 48]` (the seeds' categories), and
-`bincount` turns it into a length-479 vector that is 1 at positions 48 and 131 and 0 elsewhere.
-
-```python
-mean=tally/tally.sum(1,keepdim=True)
-mix=self.mixing[i]
-```
-
-**`mean` is t(S)/|S|, the seeds' category mix:** 0.5 at 48, 0.5 at 131.
-
-```python
-if bundles is None:
-    out=out+(mean@getattr(self,f'label_left{i}')@mix)@getattr(self,f'label_right{i}')[labels].T
-```
-
-Read it from left to right:
-
-- `mean @ P`: (1 × 479)(479 × 16) → 1 × 16. This averages the P rows of categories 48 and 131. Those two rows are
-  nearly parallel (first four entries: 0.029, 0.010, 0.001, −0.033 for 48; 0.031, 0.011, 0.001, −0.036 for 131). The
-  two DVD-drive categories co-occur with the same other categories in the training bundles, so the SVD gives them
-  similar rows.
-- `@ M`: (1 × 16)(16 × 16) → 1 × 16, the query vector in "candidate" coordinates. Its length is 0.21.
-- `Q[labels]`: this step turns 479 category rows into 3,499 item rows. Q itself is 479 × 16, one row per
-  **category**. `labels` is a length-3,499 vector holding each **item's** category number: `labels[943] = 2`,
-  `labels[717] = 29`, `labels[2775] = 130`. Indexing a matrix with a vector of row numbers (PyTorch "advanced
-  indexing") returns one row per entry of the vector:
-
-  ```
-  Q[labels][c] = Q[labels[c]]      for c = 0 … 3498
-  Q[labels][943] = Q[2]            (the hard drive gets the "Internal Hard Drives" row: 0.0765, 0.0264, 0.0023, …)
-  ```
-
-  So `Q[labels]` is 3499 × 16. Row c is the Q row of item c's category, and items in the same category get identical
-  copies. In matrix terms it is Γ Q, where Γ is the 3499 × 479 one-hot item-to-category matrix of §6.1. Indexing gives
-  the same result without building Γ. `.T` then makes it 16 × 3499.
-- The product is (1 × 16)(16 × 3499) → 1 × 3499: the low-rank score of every item. Since items in the same category
-  share a Q row, **all items in the same category get the same low-rank score.**
-
-On this query the low-rank scores run from −0.057 to 0.104. They are small next to content (≈ 5) and graph (≈ 1.7).
+`bincount` turns it into a length-479 vector that is 1 at positions 48 and 131 and 0 elsewhere. In matrix terms
+t(S) = Γᵀ 1_S, where Γ is the 3499 × 479 one-hot item-to-category matrix and 1_S the indicator of the seeds.
 
 ```python
 m=tally[:,labels]
 row,col=m.nonzero(as_tuple=True)
 ```
 
-**`m[j, c]` is the number of seeds that share item c's category.** This is the same indexing trick as `Q[labels]`,
-applied to columns. `tally` is q × 479, one column per category. `tally[:, labels]` picks, for each of the 3,499
-items, the column of its category, so `m` is q × 3499 and `m[j, c] = tally[j, labels[c]]`. For the hard drive,
-`m[0, 943] = tally[0, 2] = 0`, because no seed is in category 2. Here m = 1 for the 15 items in category 48 or 131 (including the two seeds) and 0 for all
-others. `nonzero` lists those 15 (query, item) positions. The diagonal is evaluated only there.
+**`m[j, c]` is the number of seeds that share item c's category.** `tally` is q × 479, one column per category.
+`labels` is a length-3,499 vector holding each item's category number (`labels[943] = 2`, `labels[717] = 29`).
+Indexing with it (PyTorch "advanced indexing") picks, for each of the 3,499 items, the column of its category, so `m`
+is q × 3499 and `m[j, c] = tally[j, labels[c]]`. In matrix terms it is t(S)ᵀ Γᵀ, computed without building Γ. For the
+hard drive, `m[0, 943] = tally[0, 2] = 0`, because no seed is in category 2. Here m = 1 for the 15 items in category
+48 or 131 (including the two seeds) and 0 for all others. `nonzero` lists those 15 (query, item) positions; δ is
+evaluated only there.
 
 ```python
 if len(row):
@@ -430,44 +352,42 @@ if len(row):
                    count[row],
                    getattr(self,f'label_size{i}')[labels[col]]),
                   1)
-    out=out.index_put((row,col),self.diagonal[i](x).squeeze(1),accumulate=True)
+    out=out.index_put((row,col),self.same_label[i](x).squeeze(1),accumulate=True)
 return out
 ```
 
-For each of the 15 positions, three inputs are built: log(1 + m), log|S| and log(1 + size of that category).
-The category size uses the same indexing twice: `labels[col]` gives the category of each listed item, and
-`label_size0[...]` (length 479, one entry per category) looks up that category's log(1 + n_g). The small MLP δ maps them to one number, and `index_put(..., accumulate=True)` **adds** it to the low-rank score at that
-position.
+For each of the 15 positions, three inputs are built: log(1 + m), log|S| and log(1 + size of that category). The
+category size uses the same indexing twice: `labels[col]` gives the category of each listed item, and
+`label_size0[...]` (length 479, one entry per category) looks up that category's log(1 + n_g). δ maps them to one
+number, and `index_put` writes it at that position. Every other entry of `out` stays exactly 0.
 
 What the trained δ learned (with |S| = 2):
 
 | m (seeds sharing the category) | category size 1 | 5 | 20 | 50 |
 |---|---|---|---|---|
-| 1 | +0.85 | +0.50 | +0.01 | −0.16 |
-| 2 | +0.92 | +0.60 | +0.09 | −0.10 |
+| 1 | +0.81 | +0.72 | +0.43 | +0.25 |
+| 2 | +0.93 | +0.86 | +0.59 | +0.40 |
 
-Sharing a **small** category is strong evidence. Sharing a **large** category is worth nothing or slightly
-negative, because a big category like "cases" gives no specific hint. The sign is learned, not assumed.
+Sharing a **small** category is stronger evidence than sharing a **large** one, because a big category like "cases"
+gives a less specific hint. More seeds in the category add a little more. The sign is learned, not assumed.
 
-### 6.3 The numbers
+### 6.2 The numbers
 
-| Item | Shares a seed's category? | Low rank | Diagonal | L |
-|---|---|---|---|---|
-| **943 hard drive** (label 2) | no | −0.0048 | 0 (m = 0, not evaluated) | **−0.0048** |
-| 717 power supply (label 29) | no | −0.0098 | 0 (m = 0, not evaluated) | −0.0098 |
-| 2775 memory (label 130) | no | −0.0076 | 0 (m = 0, not evaluated) | −0.0076 |
-| 2982 processor (label 115) | no | −0.0037 | 0 (m = 0, not evaluated) | −0.0037 |
-| 1697 Sony slim DVD drive (label 48) | yes, m = 1, size 8 | −0.0015 | +0.3151 | 0.3136 |
-| 3317 LG DVD rewriter (label 131) | yes, m = 1, size 7 | −0.0025 | +0.3679 | 0.3653 |
+| Item | Shares a seed's category? | L |
+|---|---|---|
+| **943 hard drive** (label 2) | no | **0** |
+| 717 power supply (label 29) | no | 0 |
+| 2775 memory (label 130) | no | 0 |
+| 2982 processor (label 115) | no | 0 |
+| 1697 Sony slim DVD drive (label 48) | yes, m = 1, size 8 | +0.629 |
+| 3317 LG DVD rewriter (label 131) | yes, m = 1, size 7 | +0.655 |
 
-Every item gets a low-rank score, because every item has a category. Only items whose category matches a seed's
-get a diagonal score. For the other 3,484 items, m = 0 and δ is never evaluated, so that part is exactly 0. All
-items in category 48 get the same L of 0.3136 (the seed 2708 included), and the same holds for category 131 at 0.3653.
-The size-8 category earns a slightly smaller bonus than the size-7 one, as the δ table above predicts.
+All items in category 48 get the same L of 0.629 (the seed 2708 included), and the same holds for category 131 at
+0.655. The size-8 category earns a slightly smaller bonus than the size-7 one, as the δ table above predicts.
 
-On its own, the label term would rank the hard drive **1,340th**: it prefers more DVD drives. In this bundle the
-label term is close to silent. It moves the four items we follow by less than 0.02 after weighting, and the decision
-is made by the other two terms. This is typical on Electronic, where the bundles mix categories.
+On its own, the label term ranks the 13 non-seed items in the seeds' two categories first and gives every other item,
+the hard drive included, a score of 0: it prefers more DVD drives. In this bundle the label term does not touch the
+four items we follow, and the gate gives it little weight (§8). The decision is made by the other two terms.
 
 ## 7. Term 3: graph (`graph_scores`)
 
@@ -574,13 +494,13 @@ out=self.theta*first.log1p()
 For the hard drive 943 (deg = 52, log deg = 3.951):
 
 ```
-from seed 1912 (deg 13, log 2.565):  2 · exp(−0.0359·2.565 − 0.1748·3.951) = 2 · 0.457 = 0.914
-from seed 2708 (deg 7,  log 1.946):  1 · exp(−0.0359·1.946 − 0.1748·3.951) = 1 · 0.467 = 0.467
-sum = 1.382,   θ · log(1 + 1.382) = 1.8922 · 0.868 = 1.642
+from seed 1912 (deg 13, log 2.565):  2 · exp(−0.0556·2.565 − 0.1331·3.951) = 2 · 0.512 = 1.025
+from seed 2708 (deg 7,  log 1.946):  1 · exp(−0.0556·1.946 − 0.1331·3.951) = 1 · 0.530 = 0.530
+sum = 1.555,   θ · log(1 + 1.555) = 1.8316 · 0.938 = 1.718
 ```
 
-The learned α = 0.036 is close to 0: the seed's degree hardly matters. β = 0.175 discounts popular candidates
-mildly. A candidate with deg 52 keeps exp(−0.175 · 3.95) = 50% of its count; one with deg 11 keeps 66%.
+The learned α = 0.056 is close to 0: the seed's degree hardly matters. β = 0.133 discounts popular candidates
+mildly. A candidate with deg 52 keeps exp(−0.133 · 3.95) = 59% of its count; one with deg 11 keeps 73%.
 
 ### 7.3 The popularity prior
 
@@ -597,23 +517,23 @@ learned:
 
 | f_c | 0 | 1 | 2 | 5 | 10 | 20 |
 |---|---|---|---|---|---|---|
-| ρ | +0.07 | −0.38 | −0.37 | −0.15 | +0.04 | +0.20 |
+| ρ | −0.04 | −0.41 | −0.41 | −0.22 | −0.05 | +0.11 |
 
-It isn't monotone. Items seen in 1 or 2 bundles are pushed down and frequent items are pushed up. Never-seen items
-get a small positive value, and the gate (§8) has a separate input for them.
+It isn't monotone. Items seen in 1 or 2 bundles are pushed down most and frequent items are pushed up. Never-seen
+items get a value near zero, and the gate (§8) has a separate input for them.
 
 ### 7.4 The numbers
 
 | Item | Σ weights | θ log(1 + Σ) | ρ(f) | G |
 |---|---|---|---|---|
-| **943 hard drive** (deg 52, f 11) | 1.382 | 1.642 | +0.064 | **1.706** |
-| 717 power supply (deg 46, f 8) | 1.412 | 1.666 | −0.016 | 1.650 |
-| 2775 memory (deg 11, f 2) | 1.813 | 1.957 | −0.369 | 1.588 |
-| 2982 processor (deg 11, f 2) | 1.813 | 1.957 | −0.369 | 1.588 |
+| **943 hard drive** (deg 52, f 11) | 1.555 | 1.718 | −0.023 | **1.695** |
+| 717 power supply (deg 46, f 8) | 1.581 | 1.736 | −0.099 | 1.637 |
+| 2775 memory (deg 11, f 2) | 1.912 | 1.958 | −0.409 | 1.549 |
+| 2982 processor (deg 11, f 2) | 1.912 | 1.958 | −0.409 | 1.549 |
 
 The memory and the processor have the largest discounted counts, because they are less popular and β discounts them
 less. The prior then pulls them below the hard drive, because items seen in only 2 bundles are less trusted. **Graph
-alone ranks the hard drive 1st**, but only 0.056 ahead of the power supply.
+alone ranks the hard drive 1st**, but only 0.058 ahead of the power supply.
 
 ## 8. The gate (`gate_weights`)
 
@@ -644,10 +564,11 @@ weights and a bias of log(e − 1), so at initialization every weight is exactly
 The trained gate gives this query:
 
 ```
-w_C = 1.228     w_L = 1.616     w_G = 4.441
+w_C = 1.539     w_L = 0.187     w_G = 4.605
 ```
 
-The seeds are known items (f = 4 and 1), so the gate trusts the graph most, about 3.6 times as much as content.
+The seeds are known items (f = 4 and 1), so the gate trusts the graph most, about 3.0 times as much as content, and
+gives the label term little weight.
 For seeds never seen in training, the third input would be 1, the graph term would be nearly empty, and the gate
 would shift weight to content.
 
@@ -662,20 +583,20 @@ follow:
 
 | Item | w_C · C | w_L · L | w_G · G | **Total** | Rank |
 |---|---|---|---|---|---|
-| **943 hard drive** | 6.364 | −0.008 | 7.578 | **13.934** | **1** |
-| 717 power supply | 5.310 | −0.016 | 7.326 | 12.620 | 2 |
-| 2775 memory | 5.110 | −0.012 | 7.051 | 12.149 | 3 |
-| 2982 processor | 4.247 | −0.006 | 7.051 | 11.293 | 4 |
+| **943 hard drive** | 10.244 | 0 | 7.806 | **18.050** | **1** |
+| 717 power supply | 8.693 | 0 | 7.539 | 16.232 | 2 |
+| 2775 memory | 8.514 | 0 | 7.135 | 15.649 | 3 |
+| 2982 processor | 8.007 | 0 | 7.135 | 15.142 | 4 |
 
-The 5th item is 2230, a Rosewill power supply, at 10.796.
+The 5th item is 7, a Rosewill computer case, at 13.141.
 
 **Why the target wins:**
 
-- On the graph, the hard drive is only 0.25 ahead of the power supply after weighting.
-- On content, it is 1.05 ahead: its title fits "optical drives" better than a power supply's does.
+- On the graph, the hard drive is only 0.27 ahead of the power supply after weighting.
+- On content, it is 1.55 ahead: its title fits "optical drives" better than a power supply's does.
 
-Neither term alone settles it as clearly. Content alone ranks the target 27th and graph alone ranks it 1st by a thin
-margin. Together, the gap to rank 2 is 1.31.
+Neither term alone settles it as clearly. Content alone ranks the target 37th and graph alone ranks it 1st by a thin
+margin. Together, the gap to rank 2 is 1.82.
 
 **Ranking** happens outside the model, in `evaluate.top_items`:
 
@@ -686,7 +607,7 @@ values[list(seeds)]=-np.inf
 
 The seeds are set to −∞ so they can never be recommended. This matters: content's highest score belonged to the
 seed 2708. The top 20 are then taken, with exact ties broken by lower item ID. The top 20 for our query start
-`943, 717, 2775, 2982, 2230, 7, 2124, …`. The target is first, so Recall@20 = 1 and NDCG@20 = 1.
+`943, 717, 2775, 2982, 7, 2230, 2124, …`. The target is first, so Recall@20 = 1 and NDCG@20 = 1.
 
 ## 10. Many bundles at once, and the evaluation cache
 
@@ -694,7 +615,7 @@ seed 2708. The top 20 are then taken, with exact ties broken by lower item ID. T
 Nothing in the walk-through changes:
 
 - φ becomes 32 × 64, and `phi @ k.T` gives 32 × 3499.
-- `tally` and `mean` become 32 × 479.
+- `tally` becomes 32 × 479 and `m` 32 × 3499.
 - `expand` tags every pair with its query, and `scatter_add` writes into row `query` of the 32 × 3499 matrix.
 - The gate gets 32 × 3 inputs and returns 32 × 3 weights, so every query has its own weights.
 
@@ -727,10 +648,9 @@ that were counted with the seeds score high" from counts that contain the answer
 in the counts, so it would learn the wrong lesson.
 
 **The fix.** Every place that reads training counts subtracts this bundle's own contribution (leave-one-out). The
-label factors P and Q can't be corrected by subtraction (they come from an SVD), so they are swapped for a version
-computed without this bundle's fold (cross-fitting).
+label term reads only the items' categories, which no bundle changes, so it needs no fix.
 
-To show the effect, take the training bundle [2982, 2775, 717, 943, 1912] (fold 0), with seeds [2982, 2775] and
+To show the effect, take the training bundle [2982, 2775, 717, 943, 1912], with seeds [2982, 2775] and
 targets 717, 943, 1912. (The real training loop draws the split at random; we fixed one for the example.) The same
 seeds are scored twice: in training mode with the bundle given, and in evaluation mode without it.
 
@@ -768,26 +688,13 @@ if fixes:
                             accumulate=True)
 ```
 
-The effect is small here: for the members, C moves by at most 0.02 (for example 943: 3.893 → 3.902), because
+The effect is small here: for the members, C moves by at most 0.03 (for example 943: 5.896 → 5.899), because
 histories carry little weight in this trained model (§5.3).
 
-### 11.2 Labels: the fold's factors
+### 11.2 Labels: nothing to subtract
 
-```python
-fold=torch.tensor([fold_of(b.tolist()) for b in bundles])
-for k in fold.unique().tolist():
-    rows=(fold==k).nonzero(as_tuple=True)[0]
-    part=(mean[rows]@getattr(self,f'label_fold_left{i}')[k]@mix)@getattr(self,f'label_fold_right{i}')[k][labels].T
-    out=out.index_put((rows,),out[rows]+part)
-```
-
-`fold_of` hashes the bundle's sorted items to a number 0–4 (identical bundles always get the same fold). Queries
-are grouped by fold, and each group uses P^(k), Q^(k), computed from the bundles *outside* fold k. Our bundle is in
-fold 0, so its category pairs never entered the factors it is scored with. The diagonal part uses only the seeds'
-own categories, so it needs no correction.
-
-Because the factors differ, L changes for every item, not only the members: up to 0.38 here. For the members:
-943 goes from −0.018 to +0.035, and 2775 from −0.207 to −0.141.
+`label_scores` takes no `bundles` argument. t(S), m and the category sizes n_g come from the items' categories,
+which are the same whether or not this bundle was in training, so L is identical in both modes.
 
 ### 11.3 Graph: subtracting the bundle's pairs
 
@@ -827,9 +734,9 @@ bundles is this one, so the honest count is 1. For the targets, G drops:
 
 | Member | G, evaluation mode (answer counted) | G, training mode (answer removed) |
 |---|---|---|
-| 717 | 1.985 | 1.231 |
-| 943 | 2.039 | 1.303 |
-| 1912 | 2.071 | 1.261 |
+| 717 | 1.975 | 1.219 |
+| 943 | 2.031 | 1.289 |
+| 1912 | 2.011 | 1.214 |
 
 Without the correction, every target would get about 0.75 extra graph score from its own bundle. The model would
 learn to over-trust the graph.
@@ -838,15 +745,15 @@ learn to over-trust the graph.
 
 `gate_weights` subtracts 1 from each seed's frequency in training (`1 if bundles is not None else 0`), because the
 bundle being scored is one of the f bundles. The seeds 2982 and 2775 have f = 2, so the familiarity input goes from
-log 3 to log 2. The weights change from (1.24, 1.64, 4.60) in evaluation mode to (1.35, 1.90, 5.90) in training mode.
+log 3 to log 2. The weights change from (1.56, 0.19, 4.74) in evaluation mode to (1.76, 0.23, 5.78) in training mode.
 
-All three terms and the gate see training counts **as they would look if this bundle had never been seen**. That is
+The content and graph terms and the gate see training counts **as they would look if this bundle had never been seen**. That is
 exactly the situation of a test bundle.
 
 ## 12. Summary of shapes
 
-For a batch of q queries on Electronic (n = 3,499, d = 128, r = 64, K = 479, k = 16, P = number of seed–partner
-pairs in the batch):
+For a batch of q queries on Electronic (n = 3,499, d = 128, r = 64, K = 479, P = number of seed–partner pairs in the
+batch):
 
 | Step | Code | Shape |
 |---|---|---|
@@ -856,9 +763,7 @@ pairs in the batch):
 | seed queries φ | `phi` | q × r |
 | content scores C | `phi @ k.T` | q × n |
 | category tally t(S) | `tally` | q × K |
-| category mix | `mean` | q × K |
-| label query | `mean @ P @ M` | q × k |
-| candidate label factors | `Q[labels]` | n × k |
+| seeds sharing c's category | `m` | q × n |
 | label scores L | `out` | q × n |
 | seed–partner pairs | `expand(...)` | P (here 16) |
 | discounted counts | `first` | q × n |
@@ -868,5 +773,6 @@ pairs in the batch):
 | gate weights | `w` | q × 3 |
 | final scores | `forward(...)` | q × n |
 
-To reproduce the numbers in this document, load the model with `dials.train.load(ds, 'runs/electronic/seed0',
-'cache')` and call each method above on `[tensor([1912, 2708])]`.
+To reproduce the numbers in this document, run `PYTHONPATH=. python paper/figdata/forward_numbers.py`. It loads the
+model with `triad.train.load(ds, 'runs/electronic/seed0', 'cache')` and calls each method above on
+`[tensor([1912, 2708])]`.

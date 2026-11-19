@@ -1,0 +1,15 @@
+\begin{tabular}{lllrrlr}
+\toprule
+& & \multicolumn{3}{c}{TRIAD $-$ best simple} & \multicolumn{2}{c}{TRIAD w/o bonus $-$ best simple}\\
+\cmidrule(lr){3-5}\cmidrule(lr){6-7}
+Dataset & Best simple & $\Delta$ N@20 [95\% CI] & $p$ (N) & $p$ (R) & $\Delta$ N@20 [95\% CI] & $p$ (N)\\
+\midrule
+Electronic & content+kNN$^{*}$ & +.022 [+.004, +.042] & .116 & .116 & $-$.006 [$-$.025, +.013] & 1.000\\
+Food & content+kNN$^{*}$ & +.014 [$-$.003, +.031] & .373 & \textbf{.026} & $-$.015 [$-$.031, +.001] & .198\\
+Clothing & content+kNN$^{*}$ & +.011 [$-$.005, +.027] & .373 & .383 & $-$.072 [$-$.094, $-$.052] & \textbf{.001}\\
+POG\_DENSE & RP3$\beta$ & +.037 [+.034, +.041] & \textbf{.001} & \textbf{.001} & +.037 [+.034, +.041] & \textbf{.001}\\
+POG & lab.+kNN+cont. & +.007 [+.005, +.009] & \textbf{.001} & \textbf{.001} & +.005 [+.004, +.007] & \textbf{.001}\\
+Spotify\_sparse & lab.+kNN+cont.$^{*}$ & +.048 [+.043, +.052] & \textbf{.001} & \textbf{.001} & +.047 [+.042, +.051] & \textbf{.001}\\
+Spotify & lab.+kNN+cont. & +.035 [+.031, +.040] & \textbf{.001} & \textbf{.001} & +.035 [+.031, +.040] & \textbf{.001}\\
+\bottomrule
+\end{tabular}

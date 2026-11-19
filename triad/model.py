@@ -1,4 +1,4 @@
-"""DIALS: diagonal-plus-low-rank label relations with spectral cross-fitting, for bundle completion.
+"""TRIAD: bundle completion from three gated relations (content, labels, co-occurrence graph).
 
 Read this file next to ARCHITECTURE.md; section numbers (§) below refer to it.
 
@@ -11,18 +11,14 @@ Content (§6)  C = phi(S)^T psi(c). phi averages over the seeds and psi maps the
               partners).
 Labels (§7)   for each attribute level l (category; or artist and album), with t(S) the seeds' label counts and g(c)
               the candidate's label:
-                  L_l = delta_l(t_g(c)(S), |S|, size of g(c)) [t_g(c)(S) > 0]  +  (t(S)/|S|) P_l M_l Q_l[g(c)]^T
-              The diagonal delta_l (a small MLP) scores a shared label; its sign is learned. The low-rank part says
-              which labels go with which: P_l, Q_l are fixed factors from a rank-16 SVD of the normalized
-              label-by-label co-occurrence matrix Gamma^T N Gamma, and only the 16 x 16 matrix M_l is learned.
+                  L_l = delta_l(t_g(c)(S), |S|, size of g(c)) [t_g(c)(S) > 0]
+              delta_l (a small MLP) scores a candidate that shares a seed's label; its sign is learned.
 Graph (§8)    G = theta log(1 + sum_{s in S} n_sc deg_s^-alpha deg_c^-beta) + rho(f_c): damped co-occurrence counts
               with learned degree exponents, plus a learned curve rho of the candidate's training frequency f_c.
 Gate (§9)     w(S) = softplus(MLP(log|S|, mean seed log-frequency, share of seeds never seen in training)).
 
 Leakage-free training (§11). A training bundle is scored with its own contribution removed from every count, degree,
-frequency and partner history (leave-one-out). The label SVD cannot be corrected that way, so it is cross-fitted:
-training bundles are split into five folds (identical bundles share a fold) and a bundle being trained on uses
-factors computed without its fold. Evaluation uses factors from all training bundles.
+frequency and partner history (leave-one-out).
 
 How the code maps to the symbols of ARCHITECTURE.md §4:
 
@@ -34,10 +30,7 @@ How the code maps to the symbols of ARCHITECTURE.md §4:
     history_mass                deg         co-occurrence degree, deg_c = sum_s N_sc
     history_sum                 N X         unnormalized partner history; history() divides by deg to give H
     label{i}                    g_l(c)      label value of every item at level l = i
-    label_left{i}, label_right{i}           P_l, Q_l from all training bundles (used at evaluation)
-    label_fold_left{i}, ...                 P_l^(k), Q_l^(k) computed without fold k (used in training)
-    mixing[i]                   M_l         learned 16 x 16 label mixing matrix
-    diagonal[i]                 delta_l     learned MLP for "the candidate shares a seed's label"
+    same_label[i]               delta_l     learned MLP for "the candidate shares a seed's label"
     query_content, query_history  A_z, A_h  seed-side content maps
     key_content, key_history      B_z, B_h  candidate-side content maps
     exponents                   alpha, beta degree discounts of the graph term
@@ -46,19 +39,14 @@ How the code maps to the symbols of ARCHITECTURE.md §4:
     gate                                    MLP giving the term weights w(S)
 
 Shapes used in comments: q = number of queries in a batch, n = catalogue size, d = feature dimension (128),
-r = content rank (64), K = number of label values at a level, k = label rank (16).
+r = content rank (64), K = number of label values at a level.
 """
-import hashlib
 import math
 import numpy as np
 import scipy.sparse as sp
 import torch
 from torch import nn
 from torch.nn import functional as F
-
-# Number of folds for cross-fitting the label factors (§11).
-FOLDS=5
-
 
 # =====================================================================================================================
 # Fixed structures built from the training bundles (❄️ in ARCHITECTURE.md: computed once, never trained)
@@ -104,74 +92,6 @@ def pair_counts(train,n):
     return source,target,counts,frequency,pointer
 
 
-def fold_of(bundle):
-    """Deterministic fold (0..FOLDS-1) of a bundle, for cross-fitting (§11).
-
-    The fold is a hash of the bundle's sorted distinct items, so identical bundles always share a fold and a duplicate
-    cannot leak its twin's label statistics.
-    """
-    return int(hashlib.md5(np.asarray(sorted(set(bundle)),dtype='<i8').tobytes()).hexdigest(),16)%FOLDS
-
-
-def label_factors(counts,labels,rank=16):
-    """Spectral label factors P, Q (§7, the low-rank part).
-
-    Computes the label co-occurrence  N_bar = Gamma^T N Gamma  (K x K), normalizes it by the label degrees,
-        N_hat = D^-1/2 N_bar D^-1/2,
-    and takes a rank-k truncated SVD  N_hat ~ U Sigma V^T. The singular values are split evenly:
-        P = U Sigma^1/2,  Q = V Sigma^1/2   (each K x k),  so P Q^T ~ N_hat.
-
-    Args:
-        counts: N as a sparse n x n matrix.
-        labels: length n; labels[c] = g_l(c), the label value of item c at this level.
-        rank: k, the number of spectral directions (capped at K - 1).
-    """
-    from sklearn.utils.extmath import randomized_svd
-
-    # Gamma: one-hot item-to-label incidence, n x K.
-    g=sp.csr_matrix((np.ones(len(labels),np.float32),(np.arange(len(labels)),labels)),
-                    shape=(len(labels),int(labels.max())+1))
-
-    # N_bar = Gamma^T N Gamma: how often label g appears in a bundle with label g'.
-    c=(g.T@counts@g).tocsr()
-
-    # sqrt of the label degrees (row sums of N_bar), floored at 1 to avoid dividing by zero.
-    scale=np.sqrt(np.maximum(np.asarray(c.sum(1)).ravel(),1)).astype(np.float32)
-
-    # Truncated SVD of D^-1/2 N_bar D^-1/2. Fixed random_state: the factors are reproducible.
-    u,sigma,vt=randomized_svd(sp.diags(1/scale)@c@sp.diags(1/scale),
-                              min(rank,c.shape[0]-1),
-                              n_iter=4,
-                              random_state=0)
-    root=np.sqrt(sigma)
-    return (u*root).astype(np.float32),(vt.T*root).astype(np.float32)   # P, Q
-
-
-def cross_fitted_labels(train,n,levels,rank=16):
-    """Label factors for every level: one pair from all training bundles, and one pair per fold without that fold (§11).
-
-    Returns, for each level l, a tuple
-        ((P_l, Q_l), [(P_l^(0), Q_l^(0)), ..., (P_l^(FOLDS-1), Q_l^(FOLDS-1))])
-    The first pair is used at evaluation; P_l^(k), Q_l^(k) score training bundles that fall in fold k.
-    """
-    def factors(rows):
-        # N from the given bundles, then (P, Q) for every level.
-        source,target,counts,_,_=pair_counts(rows,n)
-        matrix=sp.csr_matrix((counts.astype(np.float32),(source,target)),shape=(n,n))
-        return [label_factors(matrix,np.asarray(l),rank) for l in levels]
-
-    assignment=[fold_of(b) for b in train]
-
-    # From all training bundles (evaluation).
-    full=factors(train)
-
-    # One per fold k, built from the bundles outside fold k (training).
-    parts=[factors([b for b,f in zip(train,assignment) if f!=k]) for k in range(FOLDS)]
-
-    # Regroup from [fold][level] to [level][fold].
-    return [(full[i],[p[i] for p in parts]) for i in range(len(levels))]
-
-
 def curve(inputs,hidden=16):
     """A small MLP  inputs -> 16 -> 1  used for delta_l (§7) and the popularity prior rho (§8)."""
     return nn.Sequential(nn.Linear(inputs,hidden),nn.GELU(),nn.Linear(hidden,1))
@@ -181,14 +101,13 @@ def curve(inputs,hidden=16):
 # The model
 # =====================================================================================================================
 
-class DIALS(nn.Module):
-    """The DIALS scorer. model(seeds) returns a q x n matrix of scores, one row per query (§5).
+class TRIAD(nn.Module):
+    """The TRIAD scorer. model(seeds) returns a q x n matrix of scores, one row per query (§5).
 
     Args:
         features: n x d item features X.
         levels: list of label arrays, one per level, each of length n (e.g. [category] or [artist, album]).
         train: the training bundles; N, deg, f and H are built from them here (§4).
-        spectral: the output of cross_fitted_labels(train, n, levels) (cached by train.spectral).
         rank: r, the rank of the content maps (64).
         hidden: width of the content encoder MLP (32).
 
@@ -196,7 +115,7 @@ class DIALS(nn.Module):
     checkpoint holds the trained parameters only.
     """
 
-    def __init__(self,features,levels,train,spectral,rank=64,hidden=32):
+    def __init__(self,features,levels,train,rank=64,hidden=32):
         super().__init__()
 
         # ---- fixed data (❄️) ---------------------------------------------------------------------------------------
@@ -226,9 +145,8 @@ class DIALS(nn.Module):
         self.register_buffer('log_degree',self.history_mass.clamp_min(1).log(),persistent=False)
 
         # ---- label term, one set per level l (§7) --------------------------------------------------------------
-        self.mixing=nn.ParameterList()   # M_l, trained
-        self.diagonal=nn.ModuleList()    # delta_l, trained
-        for i,(labels,((left,right),folds)) in enumerate(zip(levels,spectral)):
+        self.same_label=nn.ModuleList()  # delta_l, trained
+        for i,labels in enumerate(levels):
             g=torch.as_tensor(labels,dtype=torch.long)
             size=int(g.max())+1    # K_l, the number of label values at this level
 
@@ -238,18 +156,8 @@ class DIALS(nn.Module):
             # log(1 + n_g): how many items carry each label value (an input of delta_l).
             self.register_buffer(f'label_size{i}',torch.bincount(g,minlength=size).float().log1p(),persistent=False)
 
-            # P_l, Q_l from all training bundles (evaluation).
-            self.register_buffer(f'label_left{i}',torch.as_tensor(left),persistent=False)
-            self.register_buffer(f'label_right{i}',torch.as_tensor(right),persistent=False)
-
-            # P_l^(k), Q_l^(k) stacked over the folds: FOLDS x K x k (training).
-            self.register_buffer(f'label_fold_left{i}',torch.as_tensor(np.stack([f[0] for f in folds])),persistent=False)
-            self.register_buffer(f'label_fold_right{i}',torch.as_tensor(np.stack([f[1] for f in folds])),persistent=False)
-
-            # M_l starts at zero, so the low-rank part starts switched off.
-            self.mixing.append(nn.Parameter(torch.zeros(left.shape[1],left.shape[1])))  # M_l
             # delta_l takes (log(1+m), log|S|, log(1+n_g)).
-            self.diagonal.append(curve(3))
+            self.same_label.append(curve(3))
 
         # ---- content term (§6) -----------------------------------------------------------------------------------
         # Residual encoder Z = normalize(X + MLP(X)); the last layer starts at zero, so Z = X at initialization.
@@ -278,9 +186,8 @@ class DIALS(nn.Module):
         nn.init.constant_(self.gate[-1].bias,math.log(math.e-1))  # softplus = 1
 
     def fast_parameters(self):
-        """Small parameters trained at the higher learning rate (§10): M_l, delta_l, alpha, beta, theta, rho, gate."""
-        return [*self.mixing,
-                *self.diagonal.parameters(),
+        """Small parameters trained at the higher learning rate (§10): delta_l, alpha, beta, theta, rho, gate."""
+        return [*self.same_label.parameters(),
                 self.exponents,
                 self.theta,
                 *self.prior.parameters(),
@@ -368,16 +275,13 @@ class DIALS(nn.Module):
         return scores
 
     # =================================================================================================================
-    # Term 2: labels, diagonal plus low rank (§7)
+    # Term 2: labels (§7)
     # =================================================================================================================
-    def label_scores(self,i,seeds,bundles):
+    def label_scores(self,i,seeds):
         """L_l(S, c) at level l = i for every query and every item (q x n).
 
-        L_l = (1/|S|) t(S)^T P_l M_l Q_l[g(c)]^T                     low rank: which labels go with which
-            + delta_l(log(1+m), log|S|, log(1+n_g(c))) [m > 0]       diagonal: c shares a seed's label
-        with t(S) the seeds' label counts and m = t(S)_g(c).
-
-        In training (bundles given) each query uses the fold-k factors P_l^(k), Q_l^(k) of its bundle's fold (§11).
+        L_l = delta_l(log(1+m), log|S|, log(1+n_g(c))) [m > 0],  m = t(S)_g(c), the number of seeds sharing c's label.
+        Labels are fixed attributes, not counted from bundles, so the term needs no leave-one-out correction.
         """
         labels=getattr(self,f'label{i}')   # g_l(c) for every item
         q=len(seeds)
@@ -389,25 +293,7 @@ class DIALS(nn.Module):
         for j,s in enumerate(seeds):
             tally[j]=torch.bincount(labels[s],minlength=size).float()
 
-        # t(S)/|S|: the seeds' label mix.
-        mean=tally/tally.sum(1,keepdim=True)
-        mix=self.mixing[i]   # M_l
-
-        # ---- low-rank part: (t(S)/|S|) P M Q[g(c)]^T --------------------------------------------------------------
-        # (q x K)(K x k)(k x k) gives a q x k query vector; Q[labels] is n x k, one row per item.
-        if bundles is None:
-            # Evaluation: factors from all training bundles.
-            out=out+(mean@getattr(self,f'label_left{i}')@mix)@getattr(self,f'label_right{i}')[labels].T
-        else:
-            # Training: each bundle is scored with the factors computed without its fold.
-            fold=torch.tensor([fold_of(b.tolist()) for b in bundles])
-            for k in fold.unique().tolist():
-                rows=(fold==k).nonzero(as_tuple=True)[0]
-                part=(mean[rows]@getattr(self,f'label_fold_left{i}')[k]@mix)@getattr(self,f'label_fold_right{i}')[k][labels].T
-                out=out.index_put((rows,),out[rows]+part)
-
-        # ---- diagonal part: delta_l, only where m > 0 -------------------------------------------------------------
-        # m[j, c] = t(S_j)_g(c): how many seeds share item c's label (q x n).
+        # m[j, c] = t(S_j)_g(c): how many seeds share item c's label (q x n). delta_l is applied only where m > 0.
         m=tally[:,labels]
         row,col=m.nonzero(as_tuple=True)
         if len(row):
@@ -418,7 +304,7 @@ class DIALS(nn.Module):
                            count[row],                                    # log|S|
                            getattr(self,f'label_size{i}')[labels[col]]),  # log(1 + n_g(c))
                           1)
-            out=out.index_put((row,col),self.diagonal[i](x).squeeze(1),accumulate=True)
+            out=out.index_put((row,col),self.same_label[i](x).squeeze(1),accumulate=True)
         return out
 
     # =================================================================================================================
@@ -517,7 +403,7 @@ class DIALS(nn.Module):
 
         # The terms, in the gate's order: content, one per label level, graph. Each is q x n.
         parts=([self.content_scores(seeds,bundles,cache)]
-               +[self.label_scores(i,seeds,bundles) for i in range(self.levels)]
+               +[self.label_scores(i,seeds) for i in range(self.levels)]
                +[self.graph_scores(seeds,bundles,cache)])
 
         # Weighted sum, with one weight per query and term.
@@ -525,5 +411,5 @@ class DIALS(nn.Module):
         return sum(w[:,j,None]*v for j,v in enumerate(parts))
 
     def parameter_count(self):
-        """Number of trained parameters (41,624 with one label level and 41,978 with two, at the default settings)."""
+        """Number of trained parameters (41,368 with one label level and 41,466 with two, at the default settings)."""
         return sum(p.numel() for p in self.parameters())

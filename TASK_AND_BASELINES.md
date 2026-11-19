@@ -1,11 +1,11 @@
-# The task, how CLHE, RaMen and the simple baselines solve it, and how DIALS does
+# The task, how CLHE, RaMen and the simple baselines solve it, and how TRIAD does
 
 This is a companion to the guide deck (`slides/dials_guide.pdf`). It defines the task precisely, then describes each
 compared method from its code, not from its abstract:
 - CLHE: `models/CLHE.py` in the authors' released code;
 - RaMen: `models/RaMen.py` in the authors' released code;
 - the simple baselines: our own implementation, run with the shared evaluation;
-- DIALS: `dials/model.py` and `dials/train.py`.
+- TRIAD: `triad/model.py` and `triad/train.py`.
 
 Every method is written in the same notation, so the differences are visible as differences in the formulas.
 
@@ -19,7 +19,7 @@ Every method is written in the same notation, so the differences are visible as 
 | $X \in \{0,1\}^{m\times n}$ | training bundles × items; $X_{bi}=1$ if item $i$ is in bundle $b$ |
 | $C = X^\top X$, zero diagonal | co-occurrence counts; $C_{ij}$ is the number of training bundles holding both $i$ and $j$ |
 | $f_i = \sum_b X_{bi}$ | training frequency of item $i$ |
-| $Z \in \mathbb{R}^{n\times d}$ | item features: BLIP image + text on POG, CLAP audio + text on Spotify, TF-IDF of titles on Electronic/Food/Clothing and of the product hierarchy on Dunnhumby |
+| $Z \in \mathbb{R}^{n\times d}$ | item features: BLIP image + text on POG, CLAP audio + text on Spotify, BLIP text embeddings of titles (computed by us) on Electronic/Food/Clothing, TF-IDF of the product hierarchy on Dunnhumby |
 | $\Gamma_l \in \{0,1\}^{n\times L_l}$ | item labels at level $l$: category on POG and e-commerce; artist and album on Spotify; sub-commodity on Dunnhumby |
 
 ### A query
@@ -389,7 +389,7 @@ $$
 
 ### 2.12 Label-aware rules
 
-These baselines use the same item labels DIALS reads, and nothing it doesn't:
+These baselines use the same item labels TRIAD reads, and nothing it doesn't:
 
 | Dataset | Label levels $l$ |
 |---|---|
@@ -503,51 +503,51 @@ $|S|=2$.
 | Same label | .140 | .0052 | .193 | .198 |
 | Transition | .197 | .0117 | .122 | .161 |
 | Label + ItemKNN + content | .249 | .0234 | .205 | .247 |
-| DIALS | **.280** | **.0313** | **.256** | **.282** |
+| TRIAD | **.278** | **.0306** | **.256** | **.282** |
 
-The table shows the problem DIALS is built for:
+The table shows the problem TRIAD is built for:
 - **On POG,** "same label" is the weaker rule. A shared category should count *against* a candidate (one item per
   category in an outfit), but the rule can only add to its score.
 - **On Spotify,** "same label" is the stronger rule, because a shared artist is good evidence.
-- **The consequence:** the rule family has to be chosen per dataset. DIALS learns the sign of the shared-label term
-  instead ($\delta_l$ in §5), and a low-rank label relation in place of the fixed transition table.
+- **The consequence:** the rule family has to be chosen per dataset. TRIAD learns the sign of the shared-label term
+  instead ($\delta_l$ in §5). It has no transition table: which different labels go together is left to the
+  co-occurrence graph, which holds the same information item by item.
 
 ### 2.13 How the simple baselines did
 
 Test NDCG@20 on clean queries, each method at its validation setting:
 
-| Dataset | Pop. | Co-occ. | ItemKNN | RP3β | EASE | GF-CF | SGFCF | iALS | Blend | DIALS |
+| Dataset | Pop. | Co-occ. | ItemKNN | RP3β | EASE | GF-CF | SGFCF | iALS | Blend | TRIAD |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Electronic | .026 | .231 | .248 | .255 | .254 | .254 | .246 | .236 | **.299** | .335 |
-| Food | .016 | .249 | .262 | .274 | .267 | .269 | .272 | .250 | **.425** | .439 |
-| Clothing | .003 | .177 | .193 | .194 | .201 | .192 | .191 | .175 | **.330** | .388 |
+| Electronic | .026 | .231 | .248 | .255 | .254 | .254 | .246 | .236 | **.302** | .335 |
+| Food | .016 | .249 | .262 | .274 | .267 | .268 | .272 | .250 | **.445** | .474 |
+| Clothing | .003 | .177 | .193 | .193 | .201 | .192 | .191 | .175 | **.359** | .439 |
 | Dunnhumby | .057 | .094 | .102 | .103 | .104 | .080 | .104 | .081 | **.104** | .102 |
 | POG_DENSE | .156 | .240 | .208 | **.241** | .228 | .230 | .237 | .191 | .208 | .280 |
-| POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0313 |
+| POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0306 |
 | Spotify_sparse | .006 | .139 | .148 | .149 | — | .099 | .138 | .130 | **.153** | .256 |
 | Spotify | .022 | .160 | .219 | .210 | — | .173 | .195 | .210 | **.223** | .282 |
 
-- **Bold** marks the best simple baseline by validation, the one DIALS is tested against.
+- **Bold** marks the best simple baseline by validation, the one TRIAD is tested against.
 - "—" means EASE was not run (more than 40,000 items).
 - On Dunnhumby the blend, SGFCF and EASE all round to .104.
-- **Content matters most on e-commerce.** Adding it lifts ItemKNN by .05 to .16. There the bundles are small and the
+- **Content matters most on e-commerce.** Adding BLIP title content lifts ItemKNN by .05 to .18. There the bundles are small and the
   catalogue is mostly cold.
 - **On POG the best methods are the ones that keep popularity** (RP3β at β = 0, co-occurrence, EASE). In outfits,
   popular pieces are often right.
-- **DIALS's lead over the best simple baseline:**
+- **TRIAD's lead over the best simple baseline:**
   - largest where history is thin and labels carry signal: Spotify_sparse, +.104;
-  - none on warm grocery baskets (Dunnhumby, −.002, not significant).
+  - none on warm grocery baskets (Dunnhumby, −.003, not significant).
 
-### 2.14 What the family can't do, and what DIALS changes
+### 2.14 What the family can't do, and what TRIAD changes
 
-| Limitation of $YW$ | Where it shows | DIALS's answer |
+| Limitation of $YW$ | Where it shows | TRIAD's answer |
 |---|---|---|
 | One $W$ (and one blend weight) per dataset | a query with new seeds and one with warm seeds get the same mix | a gate $w(S)$ that sets the mix per query |
 | Popularity correction fixed by a grid ($\alpha$, $\beta$, $h$, $\varepsilon$) | the right β differs between POG and e-commerce | degree exponents $\alpha$, $\beta$ learned jointly with the other terms |
 | Items with $f_c=0$ get no collaborative score | POG: 96% of queries have no co-occurring seed | content and label terms that need no history |
 | Content as resemblance ($\hat Z\hat Z^\top$) | near-duplicates rank first | a learned bilinear map $\varphi(S)^\top\psi(c)$ |
 | A shared label can only add | "same label" is weaker on POG and stronger on Spotify | a shared-label term $\delta_l$ whose sign is learned |
-| A fixed label-transition table | coarse, and blind to rare labels | a low-rank, learned label relation $P_lM_lQ_l^\top$ |
 
 ## 3. CLHE (Ma et al., WSDM 2024)
 
@@ -625,8 +625,8 @@ $$
 - **No query-specific trust:** nothing in the score can say "these seeds have no history, so trust content more". That
   decision was already made inside each $\mathbf v_i$.
 - **No labels:** category and artist are not inputs.
-- **Measured:** on Spotify_sparse targets with no co-occurring seed CLHE gets NDCG@20 .003 (DIALS .263), and on POG's
-  no-history queries .005 (DIALS .019).
+- **Measured:** on Spotify_sparse targets with no co-occurring seed CLHE gets NDCG@20 .003 (DIALS, the previous
+  version of TRIAD, .263), and on POG's no-history queries .005 (DIALS .019).
 
 ## 4. RaMen (ECAI 2025)
 
@@ -702,10 +702,10 @@ query.
     that setup, and the split is not released.
   - Our reruns use a clean graph built from training bundles only.
 
-## 5. How DIALS solves it
+## 5. How TRIAD solves it
 
-DIALS stands for Diagonal-plus-low-rank label relations with spectral cross-fitting. It keeps the three kinds of
-evidence apart until the last step, learns each one as a small function of shared statistics, and lets the query decide
+TRIAD is named after its three relations between the seeds and a candidate: content, labels and co-occurrence. It
+keeps the three kinds of evidence apart until the last step, learns each one as a small function of shared statistics, and lets the query decide
 how much each one counts:
 
 $$
@@ -721,17 +721,16 @@ $$
 **Labels:**
 
 $$
-L_l(S,c) = \delta_l\big(t_{g(c)}(S), |S|, |g(c)|\big)\,[t_{g(c)}(S)>0] \;+\; \tfrac{t(S)}{|S|}\,P_l M_l Q_l^\top\,e_{g(c)}.
+L_l(S,c) = \delta_l\big(t_{g(c)}(S), |S|, |g(c)|\big)\,[t_{g(c)}(S)>0].
 $$
 
 - $t(S)$ counts the seeds' labels, and $g(c)$ is the candidate's label.
-- **The diagonal $\delta_l$** (a small MLP) scores a *shared* label, and its **sign is learned**. It comes out negative on
-  POG (avoid the seed's category in an outfit) and positive on Spotify (same artist).
-- **The low-rank part** says which labels go with which (boots → handbag).
-  - $P_l$ and $Q_l$ are fixed factors from a rank-16 SVD of the normalized label-by-label co-occurrence
-    $\Gamma_l^\top N\Gamma_l$.
-  - Only the $16\times16$ matrix $M_l$ is learned.
-  - Because the relation sits at the label level, it carries over to items with no history of their own.
+- **$\delta_l$** (a small MLP) scores a *shared* label, and its **sign is learned**. It comes out negative on POG
+  (avoid the seed's category in an outfit) and positive on Spotify (same artist).
+- Because it reads only labels, it carries over to items with no history of their own.
+- **Which different labels go together** (boots → handbag) is not modelled here. The graph term holds it item by item.
+  An earlier version, DIALS, added a learned low-rank label-to-label relation; retrained without it, test NDCG@20
+  changed by at most .004 on every dataset, so it was removed (ARCHITECTURE.md §15).
 
 **Graph:**
 
@@ -752,46 +751,45 @@ $$
 It sets one weight per term for each query. On Spotify_sparse the graph-to-content weight falls from 0.43 to 0.16 as
 the share of unseen seeds rises.
 
-**Training** (`dials/train.py`):
+**Training** (`triad/train.py`):
 - **Self-supervised queries:** each step hides a random part of 32 training bundles (half, or a uniform cut) and scores
   the full catalogue from the rest. Each hidden item competes against every item outside the bundle in a softmax, with
   no negative sampling.
 - **Leave-one-out:** every count, degree, frequency and partner history is computed with the bundle's own contribution
   removed, so the model can't read its answer from its own counts.
-- **Cross-fitting:** the label SVD can't be corrected that way, so it is cross-fitted over five folds.
 - **Early stopping:** on validation NDCG@20.
-- **Size:** 41.6k trained parameters (42.0k on Spotify_sparse), none of them per item.
+- **Size:** 41.4k trained parameters (41.5k on Spotify_sparse), none of them per item.
 
 ## 6. Side by side
 
-| | Simple baselines | CLHE | RaMen | DIALS |
+| | Simple baselines | CLHE | RaMen | TRIAD |
 |---|---|---|---|---|
 | Score | $YW$ | $\mathbf b(S)^\top\mathbf v_c$ | $\mathbf b^\top\mathbf v_c + \mathbf h_S^\top\mathbf h_c$ | gated sum of content, label and graph terms |
 | When evidence is combined | inside $W$, once per dataset | inside each item vector (early) | inside item and bundle vectors, plus a constant mix | at the end, per query (late) |
 | History | $C$ or $X$ directly | LightGCN view (user–item) | item–item GAT, hypergraph | damped counts with learned exponents |
 | Content | content kNN, blend | MLP view | MLP view, hypergraph | bilinear map with partner history |
-| Labels | label rules (positive only) | not used | not used | signed diagonal + low-rank label relation |
+| Labels | label rules (positive only) | not used | not used | shared-label score with a learned sign |
 | Cold item | content or label only | ID row never trained; content copied into the CF view | same | content and label terms, no per-item state |
 | Per-item parameters | none | $2\times64$ | $4\times64$ | none |
-| Trained parameters (POG) | 0 to a few | 9.48M | 16.1M | 41.6k |
+| Trained parameters (POG) | 0 to a few | 9.48M | 16.1M | 41.4k |
 | Training (POG, 4 CPU threads) | seconds to minutes | 85 min | about 71 min | 12–15 min |
-| Leakage control | statistics from training only | — | — | leave-one-out + cross-fitting |
+| Leakage control | statistics from training only | — | — | leave-one-out |
 
 ## 7. What the comparison shows
 
 Test NDCG@20, on identical splits and features, with each method run from its own code over 3 seeds:
 
-| Dataset | CLHE | RaMen | DIALS | Δ vs best neural |
+| Dataset | CLHE | RaMen | TRIAD | Δ vs best neural |
 |---|---|---|---|---|
-| Electronic | .260 | .254 | **.335** | +.075 |
-| Food | .272 | .274 | **.439** | +.164 |
-| Clothing | .186 | .191 | **.388** | +.197 |
-| POG_DENSE | .248 | | **.280** | +.033 |
-| POG | .0172 | | **.0313** | +.014 |
+| Electronic | .259 | .256 | **.335** | +.076 |
+| Food | .271 | .265 | **.474** | +.203 |
+| Clothing | .196 | .190 | **.439** | +.243 |
+| POG_DENSE | .248 | | **.278** | +.031 |
+| POG | .0172 | | **.0306** | +.013 |
 | Spotify_sparse | .115 | | **.256** | +.141 |
 
 - All 18 tests have $p=.002$ (Holm over 20). RaMen was rerun on the three e-commerce datasets only.
-- **Where DIALS gains most:** on items and queries without history, because content and labels are separate terms
+- **Where TRIAD gains most:** on items and queries without history, because content and labels are separate terms
   that the gate can rely on.
 - **It isn't just the gate:** with the per-query gate replaced by constant weights, most of the gain remains. The
   learned terms carry it.

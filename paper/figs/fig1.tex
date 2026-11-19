@@ -46,21 +46,18 @@
 \node[note,anchor=north west] at (0.0,0.5) {size grows with the catalogue};
 \end{scope}
 
-% ---------------- (c) DIALS ----------------
+% ---------------- (c) TRIAD ----------------
 \begin{scope}[xshift=8.95cm]
-\node[lab,anchor=west] at (0,2.55) {(c) DIALS: shared relations};
-% label x label relation
-\foreach \i in {0,...,5}{\foreach \j in {0,...,5}{
-  \pgfmathsetmacro{\o}{ifthenelse(\i==\j,70,mod(\i*7+\j*3,5)*6+6)}
-  \fill[rel!\o!white,draw=white,line width=.3pt] (0.1+0.16*\j,2.15-0.16*\i) rectangle ++(0.16,0.16);
-}}
-\node[note,anchor=north,align=center] at (0.58,1.18) {labels$\times$labels:\\diagonal\,+\,low rank};
+\node[lab,anchor=west] at (0,2.55) {(c) TRIAD: shared relations};
+% same-label score
+\node[box=seed,minimum width=10mm,anchor=west] (l1) at (0.05,1.6) {$\delta_l$};
+\node[note,anchor=north,align=center] at (l1.south) {shared label:\\sign learned};
 % content and graph, stacked
 \node[box=seed,minimum width=15mm,anchor=west] (c1) at (1.35,1.95) {$\varphi(S)^{\!\top}\psi(c)$};
 \node[note,anchor=south] at (c1.north) {content};
 \node[box=hit,minimum width=15mm,anchor=west] (g1) at (1.35,1.25) {$N_{sc}\deg_s^{-\alpha}\deg_c^{-\beta}$};
 \node[note,anchor=north] at (g1.south) {co-occurrence};
-\node[note,anchor=north west] at (0.0,0.5) {41,624 parameters, none per item: a new item is scored\\from its features and label by the same function};
+\node[note,anchor=north west] at (0.0,0.5) {41,368 parameters, none per item: a new item is scored\\from its features and label by the same function};
 \end{scope}
 \end{tikzpicture}
 \end{document}

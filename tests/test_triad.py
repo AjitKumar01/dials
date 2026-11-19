@@ -1,25 +1,25 @@
-"""Checks that later changes keep DIALS as frozen.
+"""Checks that later changes keep TRIAD as frozen.
 
 PYTHONPATH=. python -m pytest tests -q
 
-leave-one-out   training-mode content, graph and gate scores of a bundle equal evaluation-mode scores of a model built
-                without that bundle (synthetic catalogue, no data needed). The label term is cross-fitted, not
-                leave-one-out, so it is not part of this check.
+leave-one-out   training-mode content, label, graph and gate scores of a bundle equal evaluation-mode scores of a model
+                built without that bundle (synthetic catalogue, no data needed). The label term reads only item labels,
+                which do not depend on bundles, so it must be unchanged.
 metrics         top_items against a brute-force sort, with ties and seeds.
 golden          the frozen Electronic seed-0 model reproduces tests/golden (needs the data and runs/).
 resume          a run interrupted after epoch 2 and resumed equals an uninterrupted run (needs the Electronic data).
 """
-import dials  # pins BLAS threads before numpy loads
+import triad  # pins BLAS threads before numpy loads
 import json
 import shutil
 from pathlib import Path
 import numpy as np
 import pytest
 import torch
-from dials import data
-from dials import train as T
-from dials.evaluate import scores,top_items
-from dials.model import DIALS,cross_fitted_labels
+from triad import data
+from triad import train as T
+from triad.evaluate import scores,top_items
+from triad.model import TRIAD
 
 ROOT=Path(__file__).resolve().parents[1];GOLDEN=ROOT/'tests'/'golden'/'electronic_seed0.npz'
 torch.use_deterministic_algorithms(True)
@@ -36,7 +36,7 @@ def synthetic(seed=0,n=60,bundles=82):
 
 
 def model_from(train,features,levels,state=None):
-    model=DIALS(features,levels,train,cross_fitted_labels(train,len(features),levels,4),rank=8,hidden=8)
+    model=TRIAD(features,levels,train,rank=8,hidden=8)
     if state is None:
         torch.manual_seed(1)
         with torch.no_grad():
@@ -48,13 +48,15 @@ def model_from(train,features,levels,state=None):
 @torch.no_grad()
 def test_leave_one_out():
     train,features,levels=synthetic();full=model_from(train,features,levels)
-    worst=dict(content=0.,graph=0.,gate=0.)
+    worst=dict(content=0.,labels=0.,graph=0.,gate=0.)
     for i,bundle in enumerate(train):
         b=sorted(set(bundle))
         if len(b)<2:continue
         seeds=[torch.as_tensor(b[:max(1,len(b)//2)])];whole=[torch.as_tensor(b)]
         without=model_from(train[:i]+train[i+1:],features,levels,full.state_dict())
         pairs=dict(content=(full.content_scores(seeds,whole,None),without.content_scores(seeds,None,without.cache())),
+                   labels=(torch.stack([full.label_scores(l,seeds) for l in range(full.levels)]),
+                           torch.stack([without.label_scores(l,seeds) for l in range(without.levels)])),
                    graph=(full.graph_scores(seeds,whole),without.graph_scores(seeds,None)),
                    gate=(full.gate_weights(seeds,whole),without.gate_weights(seeds,None)))
         for k,(a,c) in pairs.items():worst[k]=max(worst[k],float((a-c).abs().max()))

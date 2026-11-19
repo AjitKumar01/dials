@@ -18,7 +18,7 @@ dataset that is the usual partner of Dunnhumby.
   predicted. It treats the basket as a bundle, and several papers evaluate it on Dunnhumby and Instacart.
 - **Next-basket recommendation**, which predicts a user's whole next basket, dominates the use of both datasets. Its
   main lesson for us is that **repurchase drives almost all accuracy** on these datasets. That is the same effect we
-  found when we added household repurchase counts (+45% for DIALS and +42% for the blend).
+  found when we added household repurchase counts (+45% for DIALS, the previous version of TRIAD, and +42% for the blend).
 - **Bundle pricing** on Dunnhumby: we found no paper. Pricing work uses the dataset for personalized price or
   willingness to pay, not for bundles.
 
@@ -61,7 +61,7 @@ dataset that is the usual partner of Dunnhumby.
 - **A caveat for any price or promotion analysis.** In the Complete Journey user guide, `sales_value` is what the
   retailer received after loyalty and coupon discounts, not the price the shopper paid [22].
 
-## What this means for DIALS
+## What this means for TRIAD
 
 1. **Dunnhumby as a bundle-completion benchmark is our own construction.** We treat each basket as a bundle,
    sample 30,000 baskets of 3–20 products, and hide half of each held-out basket. No published method has numbers on
@@ -76,7 +76,7 @@ dataset that is the usual partner of Dunnhumby.
    - repeats dominate next-basket accuracy [11];
    - simple frequency kNNs win [12, 13].
 
-   This fits DIALS tying the content+ItemKNN blend on Dunnhumby, and every method gaining about 45% from household
+   This fits DIALS (the previous version) tying the content+ItemKNN blend on Dunnhumby, and every method gaining about 45% from household
    repurchase counts.
 4. **Instacart adds what Dunnhumby lacks:** product names, aisles and departments (a two-level label hierarchy, like
    artist/album on Spotify), and the order items were added to the basket. That order would allow a directed

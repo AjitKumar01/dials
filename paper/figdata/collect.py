@@ -2,11 +2,11 @@
 
 PYTHONPATH=. python paper/figdata/collect.py
 """
-import dials  # pins BLAS threads
+import triad  # pins BLAS threads
 import json, numpy as np, torch
 from torch import nn
-from dials import data
-from dials.model import curve
+from triad import data
+from triad.model import curve
 D=['electronic','food','clothing','pog_dense','pog','spotify_sparse','spotify']
 out={}
 for name in D:
@@ -22,7 +22,7 @@ for name in D:
         per_seed=[]
         for s in (0,1,2):
             sd=torch.load(f'runs/{name}/seed{s}/model.pt',map_location='cpu',weights_only=False)
-            mlp=curve(3); mlp.load_state_dict({k.split(f'diagonal.{lvl}.')[1]:v for k,v in sd.items() if k.startswith(f'diagonal.{lvl}.')})
+            mlp=curve(3); mlp.load_state_dict({k.split(f'same_label.{lvl}.')[1]:v for k,v in sd.items() if k.startswith(f'same_label.{lvl}.')})
             S=st['median_seeds']
             x=torch.tensor([[np.log1p(1.),np.log(S),np.log1p(g)] for g in grid],dtype=torch.float32)
             with torch.no_grad(): per_seed.append(mlp(x).squeeze(1).tolist())

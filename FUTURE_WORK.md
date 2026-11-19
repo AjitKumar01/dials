@@ -6,14 +6,15 @@ analysis in full.
 
 ## 1. Faster training
 
-### Why a 41.6 k-parameter model has slower epochs than 16 M-parameter RaMen
+### Why a 41.4 k-parameter model has slower epochs than 16 M-parameter RaMen
 
-Parameter count is not compute. DIALS applies its shared maps to every item at every step, because the loss is a
+Parameter count is not compute. TRIAD applies its shared maps to every item at every step, because the loss is a
 softmax over the whole catalogue. RaMen's parameters are mostly embedding rows that a batch only looks up. It
 also normalizes over the whole catalogue, but at batch 1024: on POG that is 14 steps per epoch for RaMen and 437 for
-DIALS (batch 32).
+TRIAD (batch 32).
 
-Measured on POG (4 CPU threads, Apple M5 Pro, `bundlefuse/results/timing`):
+Measured on POG (4 CPU threads, Apple M5 Pro, `bundlefuse/results/timing`), with DIALS, the previous version, which
+also computed a low-rank label part; TRIAD drops that part, so its times can only be lower:
 
 | | Per epoch | Epochs | Training | Inference |
 |---|---|---|---|---|
@@ -39,10 +40,9 @@ The sparse $n\times n$ co-occurrence matrix is about 9% of the step. The cost is
 
 1. Map the query instead of the catalogue: $\Phi K^\top=(\Phi B_z)Z^\top+(\Phi B_h)H^\top$. Costs $q\,d\,n$ instead of
    $n\,d\,r$.
-2. Score the low-rank label part per label ($q\times L$), then index by $g(c)$.
-3. Score the shared-label diagonal only on items whose label occurs in the seeds, through an inverted index label → items.
-4. Vectorize the leave-one-out corrections and the loss masks.
-5. Precompute `history()`, which is a fixed buffer.
+2. Score the shared-label term only on items whose label occurs in the seeds, through an inverted index label → items.
+3. Vectorize the leave-one-out corrections and the loss masks.
+4. Precompute `history()`, which is a fixed buffer.
 
 Acceptance: outputs match the frozen model, within a tolerance, on every dataset; then time an epoch on POG and Spotify.
 
@@ -53,7 +53,7 @@ few hundred steps. Acceptance: three Spotify seeds reproduce the frozen clean ND
 
 ### Memory, and where hashing helps
 
-DIALS has no per-item parameters, so hashed embedding tables do not apply. Hashing helps when building the
+TRIAD has no per-item parameters, so hashed embedding tables do not apply. Hashing helps when building the
 co-occurrence counts from millions of baskets: a count-min sketch while counting, then the top $k$ partners per item,
 stored as int32 indices and int16 counts. The features, histories and keys can be stored in float16 or product-quantized.
 
@@ -109,19 +109,19 @@ What was checked on 2026-11-11:
   SigLIP 2 text tower. Check the current Hugging Face listings before choosing.
 - **Other modalities:** keep the released image and audio features. POG images (URLs only) and Spotify audio (track IDs
   only) cannot be re-encoded.
-- **Same features for every method:** DIALS, the content plus ItemKNN blend, CLHE and RaMen.
+- **Same features for every method:** TRIAD, the content plus ItemKNN blend, CLHE and RaMen.
 
 What this tests:
-- **Is the gain the model's or the features'?** If DIALS's margin holds in both settings, the gain is the model's.
+- **Is the gain the model's or the features'?** If TRIAD's margin holds in both settings, the gain is the model's.
 - **POG most of all.** Its titles are Chinese and BLIP's text encoder is English-trained, so the released text features
   are likely weak there. A multilingual encoder may help never-seen items most (59% of POG targets).
   Measured: replacing our Chinese bge-small-zh title embeddings with the released BLIP features cost POG 13%
   of its test NDCG@20 (.0360 to .0313); POG_DENSE and Spotify moved by under 1%.
-- **Does a stronger signal survive DIALS's fixed SVD to 128 dimensions?** If not, that is a design weakness.
-- **Do feature-heavy baselines catch up?** CLHE's MLP sees the full-dimensional features, so it may gain more than DIALS.
+- **Does a stronger signal survive TRIAD's fixed SVD to 128 dimensions?** If not, that is a design weakness.
+- **Do feature-heavy baselines catch up?** CLHE's MLP sees the full-dimensional features, so it may gain more than TRIAD.
   Report it either way.
 
-Cost: text embedding is minutes per dataset on CPU (Spotify has 254k tracks). Then retrain DIALS on all 8 datasets
+Cost: text embedding is minutes per dataset on CPU (Spotify has 254k tracks). Then retrain TRIAD on all 8 datasets
 (hours for Spotify), and rerun the blend, CLHE and RaMen (hours, on Kaggle for CLHE on POG and Spotify).
 
 ## 5. Open runs
@@ -134,3 +134,39 @@ Cost: text embedding is minutes per dataset on CPU (Spotify has 254k tracks). Th
   - the extended baseline suite (blend, iALS, SGFCF test scores) was interrupted;
   - the significance test against the best simple baseline has not been run.
 - **Inference timing on other datasets:** POG is done on one machine; the others are not.
+
+## 6. Deployment: adding items and bundles without retraining
+
+**Goal.** A new item, or a new bundle, should be usable as soon as it arrives, with the learned parameters left as they
+are. TRIAD has no per-item parameters, so this only means appending rows to its fixed tables.
+
+**What a new item c★ needs** (a title, perhaps an image, a category; no bundles yet):
+- its feature row: BLIP on the title, row-normalized, projected with the *saved* SVD basis, z★ = x★ V₁₂₈ᵀ, appended to X;
+- zero bundle statistics: N★· = N·★ = 0, f★ = deg★ = 0, h★ = 0;
+- its label: category g★, whose size goes up by one (a new category starts at size 1).
+
+Scored as a candidate it gets the full content term (key = B_z z★), the label term if a seed shares g★, and the graph
+term's constant ρ(0) for never-seen items. As a seed it adds its content query and its label, nothing to the graph
+term, and it raises the gate's "share of seeds never seen", which moves weight towards content and labels.
+
+**What a new bundle b needs** (indicator vector y): N += y yᵀ − diag(y), f += y, deg += (|b| − 1) y, and the partner
+histories H of its |b| items recomputed. Only the |b|² pairs inside the bundle change.
+
+Example: an Electronic bundle {charger, cable, new power bank}. Before it arrives, the power bank is scored by its
+title and category only. After it, N gains the three pairs (charger, power bank), (cable, power bank), (charger, cable),
+and the next query that contains the charger also finds the power bank through the graph term.
+
+**How well new items do today** (test Recall@20 on targets never seen in training, BLIP, frozen model): Electronic
+.288, Food .524, Clothing .503, Spotify_sparse .131, POG_DENSE .002, POG .021. Content carries new items on retail and
+same-artist matches on Spotify; on POG, content alone does not find the right item among 31–49 k.
+
+**To do:**
+1. **Save the SVD basis.** triad/data.py refits the SVD on the whole catalogue at every load, so adding one item would
+   shift every item's 128-d features and the trained content maps would no longer fit them. Save V₁₂₈ (and the
+   normalization) with the model, and only transform new items.
+2. **Add `add_item` and `add_bundle`.** Update X, the labels, N, f, deg and H in place.
+3. **Test it.** Adding items and bundles one at a time must give the same scores as rebuilding the model from the
+   enlarged data with the same parameters.
+4. **Measure the inductive case.** The SVD is fitted on every item's title, test-only items included. It uses no
+   bundles, so nothing leaks, but a truly new item is projected with a basis that never saw it. Refit the SVD on
+   training items only and compare.

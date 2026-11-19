@@ -1,0 +1,199 @@
+{
+ "query": 20,
+ "seeds": [
+  {
+   "id": 2708,
+   "title": "Samsung Electronics SATA 1.5 Gb-s Optical Drive, Black SH-224DB/BEBE",
+   "category": "[[Electronics,Computers & Accessories,External Components,Optical Drives,DVD Drives]]",
+   "f": 1,
+   "deg": 7.0
+  },
+  {
+   "id": 1912,
+   "title": "Lite-On Super AllWrite 24X SATA DVD+/-RW Dual Layer Drive - Bulk - IHAS124-04 (B",
+   "category": "[[Electronics,Computers & Accessories,Computer Components,Internal Optical Drives,Internal DVD Drives]]",
+   "f": 4,
+   "deg": 13.0
+  }
+ ],
+ "target": {
+  "id": 943,
+  "title": "Seagate Barracuda 320 GB HDD SATA 6 Gb/s NCQ 64MB Cache 3.5-Inch Internal Bare D",
+  "category": "[[Electronics,Computers & Accessories,Data Storage,Internal Hard Drives]]",
+  "f": 11,
+  "deg": 52.0,
+  "n_label": 32
+ },
+ "held_out": [
+  943
+ ],
+ "gate_inputs": [
+  0.6931471805599453,
+  1.1512925464970227,
+  0.0
+ ],
+ "weights": [
+  1.5385140180587769,
+  0.18674516677856445,
+  4.604837417602539
+ ],
+ "alpha": 0.055615395307540894,
+ "beta": 0.13313868641853333,
+ "theta": 1.8316212892532349,
+ "content": {
+  "query_lengths": [
+   2.9479968547821045,
+   2.964752197265625
+  ],
+  "phi_length": 2.81662917137146,
+  "key_length": 2.7716941833496094,
+  "C": 6.6583733558654785,
+  "content_only_rank": 37
+ },
+ "labels": {
+  "m": 0,
+  "L": 0.0
+ },
+ "graph": {
+  "counts": [
+   1,
+   2
+  ],
+  "sum": 1.5550480623069507,
+  "cooc": 1.7181907892227173,
+  "prior": -0.02310137450695038,
+  "G": 1.6950894594192505,
+  "prior_by_f": {
+   "0": -0.0443803109228611,
+   "1": -0.412833034992218,
+   "2": -0.40850359201431274,
+   "4": -0.2768685519695282,
+   "8": -0.09916342794895172,
+   "11": -0.02310137450695038
+  }
+ },
+ "score": 18.049612045288086,
+ "rank": 1,
+ "candidates": [
+  {
+   "id": 943,
+   "title": "Seagate Barracuda 320 GB HDD SATA 6 Gb/s NCQ 64MB Cache 3.5-Inch Internal Bare D",
+   "category": "[[Electronics,Computers & Accessories,Data Storage,Internal Hard Drives]]",
+   "f": 11,
+   "rank": 1,
+   "content": 10.244000434875488,
+   "labels": 0.0,
+   "cooccurrence": 7.911989212036133,
+   "prior": -0.10637807101011276,
+   "total": 18.049612045288086,
+   "raw": {
+    "C": 6.6583733558654785,
+    "L": 0.0,
+    "G": 1.6950894594192505
+   }
+  },
+  {
+   "id": 717,
+   "title": "Corsair CX750 Builder Series ATX 80 PLUS Bronze Certified Power Supply",
+   "category": "[[Electronics,Computers & Accessories,Laptop & Netbook Computer Accessories,Chargers & Adapters]]",
+   "f": 8,
+   "rank": 2,
+   "content": 8.692634582519531,
+   "labels": 0.0,
+   "cooccurrence": 7.9960479736328125,
+   "prior": -0.4566316306591034,
+   "total": 16.232051849365234,
+   "raw": {
+    "C": 5.650019645690918,
+    "L": 0.0,
+    "G": 1.6372817754745483
+   }
+  },
+  {
+   "id": 2775,
+   "title": "Corsair Vengeance Red 8GB (2x4GB)  DDR3 1866 MHz (PC3 15000) Desktop Memory (CMZ",
+   "category": "[[Electronics,Computers & Accessories,Computer Components,Memory]]",
+   "f": 2,
+   "rank": 3,
+   "content": 8.514402389526367,
+   "labels": 0.0,
+   "cooccurrence": 9.015865325927734,
+   "prior": -1.8810927867889404,
+   "total": 15.649174690246582,
+   "raw": {
+    "C": 5.534173011779785,
+    "L": 0.0,
+    "G": 1.5494080781936646
+   }
+  },
+  {
+   "id": 2982,
+   "title": "AMD Athlon X4 AD750KWOHJBOX 100W 3.4Ghz Processor",
+   "category": "[[Electronics,Computers & Accessories,Computer Components,CPU Processors]]",
+   "f": 2,
+   "rank": 4,
+   "content": 8.006752014160156,
+   "labels": 0.0,
+   "cooccurrence": 9.015865325927734,
+   "prior": -1.8810927867889404,
+   "total": 15.141524314880371,
+   "raw": {
+    "C": 5.204211235046387,
+    "L": 0.0,
+    "G": 1.5494080781936646
+   }
+  },
+  {
+   "id": 7,
+   "title": "Rosewill Steel/Plastic ATX Mid Tower Computer Case Blackbone",
+   "category": "[[Electronics,Computers & Accessories,Computer Components,Computer Cases]]",
+   "f": 1,
+   "rank": 5,
+   "content": 7.793638229370117,
+   "labels": 0.0,
+   "cooccurrence": 7.248536109924316,
+   "prior": -1.901029109954834,
+   "total": 13.141145706176758,
+   "raw": {
+    "C": 5.065691947937012,
+    "L": 0.0,
+    "G": 1.1612802743911743
+   }
+  },
+  {
+   "id": 3317,
+   "title": "LG Electronics 24X SATA Super-Multi DVD Internal Rewriter with M-Disc Support (B",
+   "category": "[[Electronics,Computers & Accessories,Computer Components,Internal Optical Drives,Internal DVD Drives]]",
+   "f": 0,
+   "rank": 8,
+   "content": 11.077326774597168,
+   "labels": 0.12235166877508163,
+   "cooccurrence": 0.0,
+   "prior": -0.20436418056488037,
+   "total": 10.995314598083496,
+   "raw": {
+    "C": 7.200016975402832,
+    "L": 0.6551798582077026,
+    "G": -0.04438032582402229
+   }
+  },
+  {
+   "id": 1697,
+   "title": "Sony AD-7740H-01 8X SATA Internal Slim DVD+/-RW Drive (Black)",
+   "category": "[[Electronics,Computers & Accessories,External Components,Optical Drives,DVD Drives]]",
+   "f": 0,
+   "rank": 9,
+   "content": 10.77624797821045,
+   "labels": 0.11741974949836731,
+   "cooccurrence": 0.0,
+   "prior": -0.20436418056488037,
+   "total": 10.68930435180664,
+   "raw": {
+    "C": 7.004322052001953,
+    "L": 0.6287699341773987,
+    "G": -0.04438032582402229
+   }
+  }
+ ],
+ "non_seed_items": 3497
+}

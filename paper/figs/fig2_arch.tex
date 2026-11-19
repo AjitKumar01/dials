@@ -1,4 +1,4 @@
-% DIALS architecture, left-to-right version of figures/architecture.tex for the paper.
+% TRIAD architecture, left-to-right version of figures/architecture.tex for the paper.
 \documentclass[tikz,border=3pt]{standalone}
 \usepackage{amsmath,amssymb}
 \usepackage{fontawesome5}
@@ -51,10 +51,9 @@
 \draw[frozen] (1.95,7.25) rectangle ++(0.9,0.4);\node[tiny] at (2.4,7.45) {$H$};
 \node[tiny,anchor=south west] at (2.88,7.47) {$D^{-1}NX$};
 \draw[arr] (2.4,8.38) -- (2.4,7.7);
-% P and Q
-\draw[frozen] (1.95,5.15) rectangle ++(1.1,0.3);\node[tiny] at (2.5,5.3) {$P_l$};
-\draw[frozen] (1.95,4.7) rectangle ++(1.1,0.3);\node[tiny] at (2.5,4.85) {$Q_l$};
-\node[tiny,anchor=south] at (2.5,5.47) {SVD$_{16}(\Gamma_l^{\!\top}N\Gamma_l)$};
+% label lookups
+\draw[frozen] (1.95,4.75) rectangle ++(1.1,0.6);\node[tiny] at (2.5,5.05) {$g_l,\ n_g$};
+\node[tiny,anchor=south] at (2.5,5.37) {label, label size};
 % N, deg, f
 \draw[frozen] (1.95,1.4) rectangle ++(1.4,1.4);
 \foreach \x/\y in {0.2/1.2,0.45/0.25,0.75/0.9,1.05/0.45,0.25/0.65,1.25/1.2,0.9/0.15,0.6/1.25,1.15/0.8,0.12/0.12}{\fill[fzline] (1.95+\x,1.4+\y) circle (1.3pt);}
@@ -64,7 +63,6 @@
 \draw[arr] (1.32,8.6) -- (1.93,8.6);
 \draw[arr] (1.2,5.0) -- (1.93,5.0);
 \draw[arr] (1.15,2.3) -- (1.93,2.3);
-\draw[arr] (2.5,2.82) -- (2.5,4.68);           % N -> P, Q
 \draw[arr,rounded corners=3pt] (3.1,2.82) -- (3.1,3.3) -- (4.25,3.3) -- (4.25,6.95) -- (2.4,6.95) -- (2.4,7.23); % N -> H
 
 % ============================================================ SEED BUS
@@ -95,21 +93,13 @@
 \vbar{11.3}{7.95}{cC}\node[lab,anchor=south] at (11.3,9.15) {};
 \draw[arr] (cf.east) ++(0,0) -- (11.13,7.9);
 
-% ---------------- labels: diagonal + low rank
-\draw[train] (5.95,4.65) rectangle ++(1.15,1.15);
-\foreach \k in {0,...,4}{\fill[trline!80] (6.0+0.22*\k,5.55-0.22*\k) rectangle ++(0.2,0.2);}
-\node[tiny,anchor=north] at (6.52,4.62) {\fire\ $\delta_l$\quad same label};
-\node[font=\large] at (7.45,5.2) {$+$};
-\draw[frozen] (7.85,4.5) rectangle ++(0.25,1.3);\node[tiny,anchor=north west] at (8.1,4.52) {$P_l$};
-\draw[train] (8.25,4.85) rectangle ++(0.6,0.6);
-\foreach \k in {0.15,0.3,0.45}{\draw[trline!70,line width=0.35pt] (8.25+\k,4.85) -- ++(0,0.6);\draw[trline!70,line width=0.35pt] (8.25,4.85+\k) -- ++(0.6,0);}
-\node[tiny,anchor=south] at (8.55,5.47) {\fire\,$M_l$};
-\draw[frozen] (9.0,5.05) rectangle ++(1.0,0.22);\node[tiny,anchor=north] at (9.5,5.02) {$Q_l^{\!\top}$};
-\node[tiny,text=black!65,anchor=north] at (9.5,4.5) {related labels};
-\draw[arr,rounded corners=3pt] (3.05,5.3) -- (3.7,5.3) -- (3.7,3.95) -- (7.97,3.95) -- (7.97,4.48);   % P, Q into the low-rank part
+% ---------------- labels: same-label score
+\node[train,minimum width=1.5cm,minimum height=0.75cm,font=\scriptsize] (dl) at (6.75,5.2) {\fire\ MLP $\delta_l$};
+\node[tiny,text=black!65,anchor=north,align=center] at (9.0,4.72) {fires when $m>0$ seeds\\share $c$'s label};
+\draw[arr,rounded corners=3pt] (3.05,5.05) -- (3.7,5.05) -- (3.7,3.95) -- (6.75,3.95) -- (dl.south);   % labels into delta
 \node[lab] (lc) at (10.6,5.6) {$L_l(S,c)$};
-\draw[arr] (10.02,5.16) -- (10.95,5.16);
-\draw[arr] (5.0,5.25) -- (5.93,5.25);                                         % S -> labels
+\draw[arr] (dl.east) ++(0,-0.3) -- (10.95,4.9);
+\draw[arr] (5.0,5.25) -- (dl.west |- 0,5.25);                                  % S -> labels
 \vbar{11.3}{5.05}{cL}
 
 % ---------------- graph
@@ -157,7 +147,7 @@
 \node[tiny,text=black!60,anchor=north west] at (14.85,3.38) {training};
 
 % ============================================================ LEGEND
-\node[anchor=west,tiny] at (12.8,0.25) {\fire\ trainable, 41{,}624 parameters};
+\node[anchor=west,tiny] at (12.8,0.25) {\fire\ trainable, 41{,}368 parameters};
 \node[anchor=west,tiny] at (12.8,-0.25) {\snow\ frozen, computed from data};
 \end{tikzpicture}
 \end{document}

@@ -1,4 +1,4 @@
-% DIALS architecture. Build: pdflatex architecture.tex && pdftoppm -png -r 220 -singlefile architecture.pdf architecture
+% TRIAD architecture. Build: pdflatex architecture.tex && pdftoppm -png -r 220 -singlefile architecture.pdf architecture
 \documentclass[tikz,border=8pt]{standalone}
 \usepackage{amsmath,amssymb}
 \usepackage{fontawesome5}
@@ -49,10 +49,10 @@
 \mat{2.9}{2.65}{0.5}{1.6}{frozen}\node[lab] at (3.15,3.45) {$H$};
 \node[tiny,anchor=west] at (3.5,3.0) {$D^{-1}NX$};
 \draw[arr] (1.4,3.45) -- (2.85,3.45);
-% P, Q
-\mat{6.94}{2.65}{0.44}{1.4}{frozen}\mat{7.53}{2.65}{0.44}{1.4}{frozen}
-\node[lab] at (7.16,3.35) {$P_l$};\node[lab] at (7.75,3.35) {$Q_l$};
-\node[tiny,anchor=west] at (8.0,2.85) {SVD$_{16}\!\big(\Gamma_l^{\top} N\, \Gamma_l\big)$};
+% label lookups g_l(c), n_g
+\mat{6.9}{2.9}{1.1}{0.9}{frozen}
+\node[lab] at (7.45,3.35) {$g_l,\ n_g$};
+\node[tiny,anchor=west] at (8.1,3.0) {label of each item, items per label};
 % N, deg, f
 \mat{12.5}{2.6}{1.8}{1.8}{frozen}
 \foreach \x/\y in {0.2/1.5,0.5/0.3,0.9/1.1,1.3/0.6,0.3/0.8,1.6/1.6,1.1/0.2,0.7/1.6,1.5/1.0,0.15/0.15}{\fill[fzline] (12.5+\x,2.6+\y) circle (1.6pt);}
@@ -60,9 +60,8 @@
 \mat{14.4}{2.9}{0.75}{0.22}{frozen}\node[tiny,anchor=north] at (14.78,2.85) {$\deg, f$};
 % how they are built
 \draw[arr] (1.15,1.75) -- (1.15,2.6);
-\draw[arr] (7.16,1.78) -- (7.16,2.6);
+\draw[arr] (7.43,1.78) -- (7.43,2.85);
 \draw[arr] (13.4,1.75) -- (13.4,2.55);
-\draw[arr] (12.45,3.4) -- (7.97,3.4);
 \draw[arr,rounded corners=4pt] (12.45,4.0) -- (12.0,4.0) -- (12.0,4.95) -- (3.85,4.95) -- (3.85,3.9) -- (3.45,3.9);
 
 % ============================================================ SEED BUS
@@ -93,21 +92,14 @@
 \scorebar{2.7}{11.35}{cC}\node[lab,anchor=east] at (1.2,11.51) {$C$};
 \draw[arr] (2.7,11.0) -- (2.7,11.32);
 
-% ---------------- labels: diagonal + low rank
-\draw[arr] (5.65,5.95) -- (5.65,7.45);                      % S
-\draw[arr] (7.16,4.1) -- (7.16,5.6) -- (7.86,5.6) -- (7.86,7.25);   % P, Q
-\draw[train] (5.4,7.5) rectangle ++(1.3,1.3);
-\foreach \k in {0,...,4}{\fill[trline!80] (5.45+0.25*\k,8.53-0.25*\k) rectangle ++(0.22,0.22);}
-\node[tiny] at (6.3,7.25) {\fire\ $\delta_l$};
-\node[font=\Large] at (7.1,8.15) {$+$};
-\mat{7.7}{7.3}{0.32}{1.7}{frozen}
-\draw[train] (8.15,7.85) rectangle ++(0.6,0.6);
-\foreach \k in {0.15,0.3,0.45}{\draw[trline!70,line width=0.4pt] (8.15+\k,7.85) -- ++(0,0.6);\draw[trline!70,line width=0.4pt] (8.15,7.85+\k) -- ++(0.6,0);}
-\mat{8.9}{8.0}{0.95}{0.3}{frozen}
-\node[tiny,anchor=east] at (7.68,7.6) {$P_l$};\node[tiny] at (8.45,7.6) {\fire\ $M_l$};\node[tiny] at (9.37,7.75) {$Q_l^{\top}$};
-\node[tiny,text=black!65] at (6.05,9.05) {same label};\node[tiny,text=black!65] at (8.95,9.25) {related labels};
-\draw[arr] (6.05,9.25) -- (6.05,9.6) -- (7.4,10.45);
-\draw[arr] (8.95,9.45) -- (8.95,9.7) -- (8.0,10.45);
+% ---------------- labels: same-label score
+\draw[arr] (5.65,5.95) -- (5.65,7.65) -- (6.92,7.65);        % S
+\draw[arr] (7.45,3.85) -- (7.45,7.17);                      % g_l, n_g
+\node[train,minimum width=1.5cm,minimum height=0.9cm] at (7.7,7.65) {\fire\ MLP $\delta_l$};
+\node[tiny,text=black!65] at (6.45,9.75) {same label:};
+\node[tiny] at (6.45,9.42) {$\delta_l(m,\lvert S\rvert,n_g)$};
+\node[tiny,text=black!65] at (6.45,9.1) {when $m>0$};
+\draw[arr] (7.7,8.13) -- (7.7,10.45);
 \node[lab] at (7.7,10.75) {$L_l(S,c)$};
 \scorebar{7.7}{11.35}{cL}\node[lab,anchor=east] at (6.2,11.51) {$L_l$};
 \draw[arr] (7.7,11.0) -- (7.7,11.32);
@@ -158,7 +150,7 @@
 \node[tiny,text=black!60] at (5.7,17.45) {evaluation};\node[tiny,text=black!60] at (9.7,17.45) {training};
 
 % ============================================================ LEGEND
-\node[anchor=west,lab] at (13.2,17.15) {\fire\ \ trainable, 41{,}624 parameters};
+\node[anchor=west,lab] at (13.2,17.15) {\fire\ \ trainable, 41{,}368 parameters};
 \node[anchor=west,lab] at (13.2,16.6) {\snow\ \ frozen, computed from data};
 \end{tikzpicture}
 \end{document}

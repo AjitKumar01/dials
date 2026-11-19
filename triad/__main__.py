@@ -1,5 +1,5 @@
-"""python -m dials train --dataset pog_dense --seed 0
-python -m dials test [--datasets pog_dense pog ...]
+"""python -m triad train --dataset pog_dense --seed 0
+python -m triad test [--datasets pog_dense pog ...]
 
 train: one seed into runs/<dataset>/seed<s>/ (model.pt, selected.json, history.json); resumes if interrupted.
 test: scores the selected model of seeds 0, 1, 2 on the test queries once (runs/<dataset>/seed<s>/test.json) and
@@ -76,14 +76,14 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
     sub=p.add_subparsers(required=True)
 
-    # python -m dials train --dataset NAME --seed S [--threads T]
+    # python -m triad train --dataset NAME --seed S [--threads T]
     t=sub.add_parser('train')
     t.set_defaults(run=train)
     t.add_argument('--dataset',required=True,choices=data.DATASETS)
     t.add_argument('--seed',type=int,required=True)
     t.add_argument('--threads',type=int,default=1)
 
-    # python -m dials test [--datasets NAME ...]
+    # python -m triad test [--datasets NAME ...]
     t=sub.add_parser('test')
     t.set_defaults(run=test)
     t.add_argument('--datasets',nargs='+',default=data.DATASETS,choices=data.DATASETS)

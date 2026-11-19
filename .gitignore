@@ -14,3 +14,8 @@ runs_v1_features/
 # paper previews and build files
 paper/figs/*_prev*.png
 *.out
+runs_tfidf/
+runs_dials/
+cache_blip/
+*.bbl
+*.blg

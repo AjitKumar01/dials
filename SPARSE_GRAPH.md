@@ -1,6 +1,6 @@
 # The sparse graph computation
 
-Code: `pair_counts`, `DIALS.expand` and `DIALS.graph_scores` in `dials/model.py`. Every number below was printed by
+Code: `pair_counts`, `TRIAD.expand` and `TRIAD.graph_scores` in `triad/model.py`. Every number below was printed by
 running that code.
 
 ## 0. The goal, and the plan

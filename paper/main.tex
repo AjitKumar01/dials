@@ -4,6 +4,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{microtype}
 \usepackage{xcolor}
 \usepackage[hidelinks]{hyperref}
@@ -13,8 +14,8 @@
 \renewcommand{\paragraph}[1]{\smallskip\noindent\textbf{#1}\ }
 
 \begin{document}
-\title{DIALS: Bundle Completion from Shared Relations Instead of Item Embeddings}
-\titlerunning{DIALS: Bundle Completion from Shared Relations}
+\title{TRIAD: Bundle Completion from Shared Relations Instead of Item Embeddings}
+\titlerunning{TRIAD: Bundle Completion from Shared Relations}
 \author{Anonymous Submission}
 \authorrunning{Anonymous}
 \institute{Anonymous Institution}
@@ -22,20 +23,20 @@
 
 % =====================================================================================================================
 \begin{abstract}
-Bundle completion asks a system to fill in the missing items of a partial bundle, such as an outfit or a playlist.
-Current neural models learn an embedding for every item from the few bundles that contain it, so their size grows
-with the catalogue and rarely bundled items are poorly described. We start from the observation that what makes items
-go together is mostly shared across items: which categories or artists appear together, how similar two items are,
-and how often they have been bundled. We propose DIALS, a model whose 41,624 parameters describe such relations and
-never a single item. DIALS scores a candidate by a query-dependent weighted sum of content similarity, label
-relations (a learned same-label term plus a low-rank term on fixed spectral factors) and discounted co-occurrence
-counts. It is trained without leakage: each training bundle is scored with its own contribution removed from every
-statistic. On seven datasets from fashion, music and e-commerce, we rerun two recent neural models on identical splits
-and features and tune thirteen simple baselines. DIALS ranks the missing items better than every rerun neural model
-and than the best simple baseline on all seven datasets (NDCG@20, Holm-corrected paired tests). A study of
-training-set size shows where the learned model pays off: on playlists from 50 training bundles, on small e-commerce
-bundles only from about 1,000, below which a training-free label and neighbourhood scorer is the better choice.
-\keywords{bundle completion \and bundle construction \and recommender systems \and label relations}
+Bundle completion fills in the missing items of a partial bundle, such as an outfit or a playlist. Recent models for
+it (CLHE, RaMen, Bundle-MLLM, DDBC) learn a representation for every item, with up to 67\,M trained parameters or a
+7B-parameter language model, and none of them is compared with co-occurrence or neighbourhood methods. We propose
+TRIAD, a model whose 41,368 parameters describe relations shared by all items and never a single item. It scores a
+candidate by a query-dependent weighted sum of content similarity, a shared-label score whose sign is learned, and
+discounted co-occurrence counts, and it is trained with each bundle's own contribution removed from every statistic.
+On seven datasets from fashion, music and e-commerce we rerun the neural models on identical splits and features,
+tune thirteen simple baselines, and give the main ones the frequency prior that TRIAD learns from how the released
+catalogues are built. Tuned simple methods match or beat CLHE, RaMen and DDBC, but not Bundle-MLLM. TRIAD scores
+above all four on every dataset where they are reported. Against the best simple baseline it is ahead on outfits and
+playlists (+.007 to +.048 NDCG@20, Holm-corrected paired tests) and level on three e-commerce datasets of short
+bundles, where most of its lead comes from items that occur in no training bundle; with fewer training bundles it
+keeps its lead on outfits and playlists but falls behind on e-commerce with 100 or fewer.
+\keywords{bundle completion \and bundle construction \and recommender systems \and evaluation}
 \end{abstract}
 
 % =====================================================================================================================
@@ -44,326 +45,338 @@ bundles only from about 1,000, below which a training-free label and neighbourho
 A bundle is a set of items that are used together: an outfit of a top, trousers and shoes; a playlist built around a
 few artists; a set of computer parts. Platforms rarely build bundles from nothing. A merchandiser picks one or two
 products, or a listener adds a few songs, and the system is asked to suggest the rest. This is \emph{bundle
-completion}: given some items of a bundle (the \emph{seeds}), rank the whole catalogue so that the missing items come
-first (Fig.~\ref{fig:intro}a) \cite{clhe,ramen}. The task differs from user-based recommendation, because the query
-is a set of items, not a user, and the answer must fit the seeds as a group.
+completion}: given some items of a bundle (the \emph{seeds}), rank the catalogue so that the missing items come first
+(Fig.~\ref{fig:intro}a) \cite{clhe,ramen}. The query is a set of items, not a user, and the answer must fit the seeds
+as a group.
 
-Recent models treat bundle completion as representation learning. CLHE \cite{clhe} describes every item by an ID
-embedding, multimodal features and a graph embedding, fuses them with self-attention, pools the seeds with a second
-attention layer, and trains with reconstruction and contrastive losses. RaMen \cite{ramen} adds attention over an
-item--item graph and a hypergraph of latent intents. Both score a candidate by an inner product between a bundle
-vector and the candidate's item vector, and both learn part of that item vector from the bundles the item appears in.
-
-This design ties what the model knows to individual items (Fig.~\ref{fig:intro}b). On our datasets CLHE has 0.75\,M
-to 29\,M trained parameters and RaMen 1.3\,M to 67\,M, mostly rows of item tables. Each row is fitted only from the
-bundles that contain its item, and bundle data are long-tailed: most items appear in a handful of bundles, and new
-items in none. Large models are also hard to fit from such data, and their gains over well-tuned simple methods
-should be checked, not assumed \cite{dacrema}.
+Recent models treat the task as representation learning. CLHE \cite{clhe} fuses an ID embedding, multimodal features
+and a graph embedding per item with self-attention; RaMen \cite{ramen} adds an item--item graph and a hypergraph of
+latent intents; Bundle-MLLM \cite{bundlemllm} fine-tunes a 7B-parameter language model to pick the missing item from
+ten candidates; DDBC \cite{ddbc} generates the missing items with discrete diffusion over item codes. Each learns part
+of what it knows about an item from the bundles that item appears in (Fig.~\ref{fig:intro}b). On our datasets CLHE
+has 3.7\,M to 29\,M trained parameters and RaMen 1.3\,M to 67\,M, on large catalogues mostly rows of per-item tables,
+and Bundle-MLLM runs a 6.7B-parameter model for every question. Bundle data are long-tailed, so most rows are fitted
+from a handful of bundles. None of these four papers compares with co-occurrence or neighbourhood methods; CLHE states
+that such methods cannot handle sparse data, without testing it. In recommendation, several neural models have
+trailed such methods once both were tuned \cite{dacrema,rendle2020}.
 
 Much of what makes items go together is not specific to an item. An outfit takes one item from each of several
-categories and seldom two from the same one. A playlist does the opposite and returns to the same artists. Which label
-goes with which is a relation among a few hundred labels, so every training bundle helps to learn it. Content
-similarity and co-occurrence counts are also functions of item pairs that can be scored the same way for all items.
-How much each kind of evidence should count depends on the query: a seed that occurs in many training bundles has
-reliable co-occurrence counts, and a seed that occurs in none has only its content and its labels.
+categories and seldom two from the same one; a playlist returns to the same artists. Which label goes with which is a
+relation among a few hundred labels, so every training bundle helps to learn it. Content similarity and co-occurrence
+counts are also functions of item pairs that are scored the same way for all items. How much each kind of evidence
+should count depends on the query: a seed that occurs in many training bundles has reliable co-occurrence counts, and a
+seed that occurs in none has only its content and its labels.
 
-We build on this observation with \textbf{DIALS} (DIAgonal-plus-Low-rank label relations with Spectral cross-fitting).
-DIALS scores a candidate by a gated sum of three kinds of evidence: content, label relations and co-occurrence
-(Fig.~\ref{fig:intro}c). Its 41,624 parameters describe these relations, and none belongs to an item, so an item that
-never appeared in a training bundle is scored by the same function as any other. Our contributions are:
+We build on this with \textbf{TRIAD}, named after its three relations between the seeds and a candidate: content,
+labels and co-occurrence, combined by a query-dependent gate (Fig.~\ref{fig:intro}c). Its 41,368 parameters describe
+these relations, and none belongs to an item. Our contributions are:
 \begin{itemize}
-\item \textbf{A model with no per-item parameters.} Label relations are split into a learned same-label term, whose
-sign is learned, and a low-rank term on fixed spectral factors of the label co-occurrence matrix, of which only a
-$16\times16$ matrix is trained. Training removes each bundle's own contribution from every count and uses
-cross-fitted factors, so the model never sees statistics that contain the answer.
-\item \textbf{A matched comparison.} We rerun CLHE and RaMen with their own code on identical splits and identical
-item features, with graphs built from training bundles only, and compare against thirteen tuned simple baselines,
-four of which use the same labels as DIALS. DIALS is ahead of every rerun neural model and of the best simple
-baseline on all seven datasets.
-\item \textbf{Guidance on when a learned model pays off.} By training on 50 to all of the training bundles, we show
-that DIALS leads from 50 playlists, but needs about 1,000 small e-commerce bundles; below that, a training-free
-label and neighbourhood scorer is better, and the cause is overfitting rather than too few training steps.
+\item \textbf{A model with no per-item parameters,} trained without leakage: each training bundle is scored with its
+own contribution removed from every count, so the model never sees statistics that contain the answer.
+\item \textbf{A matched evaluation.} We rerun CLHE and RaMen as released on identical splits and features, with graphs
+from training bundles only, score DDBC's released checkpoints and our models under DDBC's and Bundle-MLLM's own
+protocols, and tune thirteen simple baselines, four of them with TRIAD's labels. Simple methods match or beat CLHE,
+RaMen and DDBC, but not Bundle-MLLM; TRIAD scores above all four, clearly ahead of the best simple baseline on outfits
+and playlists and level with it on short e-commerce bundles.
+\item \textbf{Two properties of the benchmarks.} The released catalogues hold only items that occur in some bundle, so
+an item that occurs in no training bundle is likely a test target. TRIAD learns this from training data alone; we give
+the simple baselines the same prior, report TRIAD without it, and show that the advantage disappears when
+never-bundled items are added. RaMen's published e-commerce numbers use a user--item file that contains the test
+bundles.
 \end{itemize}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figs/fig1.pdf}
+\includegraphics[width=.92\textwidth]{figs/fig1.pdf}
 \caption{(a) Bundle completion ranks every catalogue item for a partial bundle. (b) Per-item models such as CLHE and
-RaMen store part of their knowledge in one learned row per item. (c) DIALS learns relations that are shared by all
-items: between labels, between item features, and over co-occurrence counts.}
+RaMen store part of their knowledge in one learned row per item. (c) TRIAD learns relations that are shared by all
+items: over labels, between item features, and over co-occurrence counts.}
 \label{fig:intro}
 \end{figure}
 
 % =====================================================================================================================
 \section{Related Work}
 
-\paragraph{Bundle construction and completion.} Bundle recommendation ranks existing bundles for a user
-\cite{bgcn,crosscbr}, and personalized bundle generation creates a bundle for a user \cite{bgn,pog}. Bundle
-construction, the setting of this paper, starts from a partial bundle and has no user. CLHE \cite{clhe} and RaMen
-\cite{ramen} learn item representations from several views and score candidates against a pooled seed vector.
-Bundle-MLLM \cite{bundlemllm} fine-tunes a multimodal language model to pick the next item from a short candidate list,
-and DDBC \cite{ddbc} generates bundles with discrete diffusion over item codes. Most of these models learn a
-representation per item. DIALS learns none, and we compare against CLHE and RaMen directly.
+\paragraph{Bundle construction.} Bundle recommendation ranks existing bundles for a user \cite{bgcn,crosscbr}, and
+personalized bundle generation creates one for a user \cite{bgn,pog}. Bundle construction starts from a partial
+bundle and has no user. CLHE \cite{clhe}, RaMen \cite{ramen} and Caro \cite{caro} learn item representations from
+several views and score candidates against a pooled seed vector; Bundle-MLLM \cite{bundlemllm} and in-context
+prompting \cite{adabundle} use language models; DDBC \cite{ddbc} generates the missing set jointly. All learn a
+representation per item, and their baselines are other neural models. Set models such as DeepSets
+\cite{deepsets} and the Set Transformer \cite{settransformer}, and basket completion with determinantal point
+processes \cite{gartrell2017}, also pool learned item embeddings; TRIAD pools fixed statistics and learns only how to
+weigh them. Feature-based cold-start models \cite{lightfm,dropoutnet} map new items into a per-item latent space;
+TRIAD has none, so a new item is scored by the same content and label terms as any other.
 
-\paragraph{Compatibility and complementarity.} Fashion compatibility models learn which items fit together, for
-example from images \cite{han2017}, with separate spaces per category pair \cite{vasileva2018}, or as complements in
-product graphs \cite{mcauley}. These works show that the relation between two items depends on their categories.
-DIALS uses the same idea at the level of labels: it learns how strongly a seed's label supports a candidate's label,
-including whether a shared label helps or hurts, which differs by domain (Section~\ref{sec:learned}).
-
-\paragraph{Simple item-to-item methods.} Neighbourhood methods such as ItemKNN \cite{sarwar2001} and RP3$\beta$
-\cite{rp3beta}, the linear model EASE \cite{steck2019} and graph filters such as GF-CF \cite{gfcf} and SGFCF
-\cite{sgfcf} remain strong in recommendation, and several neural models have been found to trail them once they are
-tuned \cite{dacrema,rendle2020}. RP3$\beta$ and the graph filters divide co-occurrence by item degree raised to a
-tuned power; DIALS learns these powers. We tune these methods on validation and add label-aware variants, so that a
-gain of DIALS cannot come from labels alone.
-
-\paragraph{Leakage in training statistics.} When a model is trained on statistics computed from the same examples
-it is trained on, each example sees a version of its own answer \cite{kapoor2023}. Cross-fitting, which computes a
-nuisance quantity on other folds, is a standard remedy in statistics \cite{chernozhukov2018}. DIALS removes each
-training bundle from its own counts exactly, and cross-fits the label factors, which cannot be corrected exactly.
+\paragraph{Simple item-to-item methods.} ItemKNN \cite{sarwar2001}, RP3$\beta$ \cite{rp3beta}, EASE \cite{steck2019}
+and graph filters \cite{gfcf,sgfcf} remain strong in recommendation once tuned \cite{dacrema,rendle2020}; latent-factor
+models \cite{hu2008,bpr,lightgcn} learn one embedding per item. RP3$\beta$ and the graph filters divide co-occurrence by
+item degree raised to a tuned power; TRIAD learns these powers. Fashion compatibility work shows that how two items
+relate depends on their categories \cite{han2017,vasileva2018,mcauley}; TRIAD keeps one label rule per level and leaves
+which different labels go together to the item counts. Training on statistics that contain the example itself leaks
+its answer \cite{kapoor2023}; TRIAD removes each training bundle from its own counts exactly.
 
 % =====================================================================================================================
 \section{Method}
+\label{sec:method}
 
-\subsection{Task and notation}
+\paragraph{Notation.} The catalogue has $n$ items. Item $c$ has a feature vector $x_c$ (rows of $X\in\R^{n\times d}$,
+unit length) and, at each label level $l$, a label $g_l(c)$: the category for fashion and e-commerce, artist and album
+for music. From the training bundles $\B$ we count $N_{sc}$, the number of bundles that contain both $s$ and $c$
+($s\neq c$), the item frequency $f_c$ and the degree $\deg_c=\sum_s N_{sc}$. A query is a seed set $S$; all items not
+in $S$ are ranked.
 
-The catalogue has $n$ items. Item $c$ has a feature vector $x_c\in\R^{d}$ ($X\in\R^{n\times d}$, rows normalized to
-unit length) and, at each label level $l$, a label $g_l(c)$; the levels are the category for fashion and e-commerce,
-and artist and album for music. From the training bundles $\B$ we count $N_{sc}$, the number of bundles that contain
-both $s$ and $c$ ($s\neq c$), the item frequency $f_c$ (bundles that contain $c$) and the degree
-$\deg_c=\sum_s N_{sc}$. A query is a seed set $S$, part of an unseen bundle; the task is to rank all items not in
-$S$ so that the rest of the bundle comes first.
+\paragraph{Features.} POG and Spotify come with released features: BLIP \cite{blip} image and text embeddings (768-d
+each) for POG, CLAP \cite{clap} audio and text embeddings (512-d each) for Spotify. E-commerce has none, so we embed each
+item title with BLIP's text encoder (768-d [CLS] vector). Each modality is row-normalized, the modalities are
+concatenated and row-normalized again, and a rank-128 truncated SVD gives $X$ ($d=128$, rows normalized). The
+projection uses no bundle and no label. Every simple content baseline uses exactly this $X$, and CLHE and RaMen the
+same unprojected vectors; we verified both for every reported number.
 
-\subsection{Overview}
-
-DIALS gives every item $c$ the score
+\paragraph{Score.} TRIAD gives every item $c$ the score
 \begin{equation}
 s(c\mid S)=w_C(S)\,C(S,c)+\textstyle\sum_l w_l(S)\,L_l(S,c)+w_G(S)\,G(S,c),
 \label{eq:score}
 \end{equation}
-the sum of a content term $C$, one label term $L_l$ per level and a graph term $G$, weighted by a gate $w(S)$ that
-depends on the query (Fig.~\ref{fig:arch}). Each term answers one question about the candidate: does it look like it
-belongs with the seeds, does its label go with the seeds' labels, and has it been bundled with the seeds before? The
-three answers are useful at different times, which is why their weights depend on the query.
+a content term, one label term per level and a graph term, weighted by a gate $w(S)$ (Fig.~\ref{fig:arch}). They ask
+whether the candidate looks like it belongs with the seeds, shares a label with a seed, and has been bundled with
+them before.
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\textwidth]{figs/fig2_arch.pdf}
-\caption{DIALS. Frozen structures (blue) are computed once from the item features, labels and training bundles.
-Each term (content, labels, graph) gives a score vector over all $n$ items; the gate weights them per query, and their
-sum ranks the catalogue. All 41,624 trained parameters (orange) are shared by all items.}
+\includegraphics[width=.95\textwidth]{figs/fig2_arch.pdf}
+\caption{TRIAD. Frozen structures (blue) are computed once from item features, labels and training bundles. Each term
+gives a score vector over all $n$ items; the gate weights them per query. All 41,368 trained parameters (orange) are
+shared by all items.}
 \label{fig:arch}
 \end{figure}
 
-\subsection{Content}
-
-The content term compares the seeds with the candidate through learned low-rank maps. Item features are first refined
-by a small residual network, $Z=\mathrm{normalize}(X+\mathrm{MLP}(X))$. Each item also gets a \emph{partner history}
-$h_c$, the count-weighted mean feature of the items it has been bundled with: $H=\mathrm{diag}(\deg)^{-1}NX$. The
-history describes an item by what it has been bundled with, not only by what it is. Then
+\paragraph{Content.} Features are refined by a small residual network, $Z=\mathrm{normalize}(X+\mathrm{MLP}(X))$, and
+each item gets a \emph{partner history}, the count-weighted mean feature of the items it has been bundled with,
+$H=\mathrm{diag}(\deg)^{-1}NX$. Then
 \begin{equation}
 C(S,c)=\varphi(S)^{\top}\psi(c),\ \ \varphi(S)=\tfrac{1}{|S|}\textstyle\sum_{s\in S}(A_z z_s+A_h h_s),\ \
-\psi(c)=B_z z_c+B_h h_c
+\psi(c)=B_z z_c+B_h h_c,
 \end{equation}
-with $A_z,A_h,B_z,B_h\in\R^{64\times d}$. Separate seed-side ($A$) and candidate-side ($B$) maps let the score be
-asymmetric: a jacket can call for boots without boots calling for a jacket. The maps start at a scaled identity on
-the first 64 feature coordinates, so training starts from plain feature similarity.
+with $A_z,A_h,B_z,B_h\in\R^{64\times d}$. Separate seed-side and candidate-side maps make the score asymmetric: a
+jacket can call for boots without boots calling for a jacket.
 
-\subsection{Labels: diagonal plus low rank}
-
-Let $t(S)\in\R^{K}$ count how many seeds carry each of the $K$ labels of a level. A natural score is a $K\times K$
-table $R$, where $R_{gg'}$ says how well a seed with label $g$ supports a candidate with label $g'$:
-$L(S,c)=\tfrac{1}{|S|}t(S)^{\top}R\,e_{g(c)}$. With $K$ up to 116,217 on Spotify (albums), $R$ cannot be learned
-freely. DIALS splits it into a diagonal and a low-rank part, $R=\Delta+P M Q^{\top}$, which do different jobs.
-
-\paragraph{Same label (the diagonal).} The diagonal entry $R_{gg}$ scores a candidate whose label is shared by
-$m=t_{g(c)}(S)$ seeds. A fixed diagonal would give $m\,\Delta_{gg}$. DIALS lets the value depend on how many seeds
-share the label, on the query size and on how large the label is ($n_g$ items):
-$\deltab_l(\log(1+m),\log|S|,\log(1+n_{g(c)}))\cdot[m>0]$, where $\deltab_l$ is an MLP with 16 hidden units shared by
-all labels. Its output can be negative, so the model can learn that sharing a label is evidence against a candidate.
-Sharing a small label is a strong hint, while sharing a large one (``shoes'') says little, which is why $n_g$ is an
-input.
-
-\paragraph{Related labels (the low rank).} The off-diagonal part says which different labels go together, such as
-skirts with sandals. We take it from the data: with $\Gamma\in\{0,1\}^{n\times K}$ the item-to-label matrix,
-$\bar N=\Gamma^{\top}N\Gamma$ counts how often two labels share a bundle. After normalizing by the label degrees,
-$\hat N=D^{-1/2}\bar N D^{-1/2}$ with $D=\mathrm{diag}(\max(\bar N\mathbf{1},1))$, a rank-16 truncated SVD
-$\hat N\approx U\Sigma V^{\top}$ gives fixed factors $P=U\Sigma^{1/2}$ and $Q=V\Sigma^{1/2}$ ($K\times16$). Only
-$M\in\R^{16\times16}$ is learned, starting at zero. The SVD provides a compact coordinate system for labels from the
-counts; $M$ learns how much each direction should count and with which sign. Every item in a label gets the same
-low-rank score, so a new item is scored through its label.
-
-\subsection{Graph}
-
-The graph term uses direct co-occurrence with the seeds, discounted for items that are bundled with everything:
+\paragraph{Labels.} With $m$ the number of seeds that share the candidate's label at level $l$ and $n_g$ the size of
+label $g$,
 \begin{equation}
-G(S,c)=\theta\log\Big(1+\textstyle\sum_{s\in S}N_{sc}\deg_s^{-\alpha}\deg_c^{-\beta}\Big)+\rho\big(\log(1+f_c)\big),
+L_l(S,c)=\deltab_l\big(\log(1+m),\log|S|,\log(1+n_{g_l(c)})\big)\cdot[m>0],
 \end{equation}
-with learned $\theta,\alpha,\beta$ and a small MLP $\rho$ that learns a popularity prior. Only the stored non-zero
-counts of the seeds' rows are read, so the cost per query is the number of the seeds' partners, not $n$.
+where $\deltab_l$ is a small MLP shared by all labels of the level. Its output can be negative, so the model can learn
+that a shared label is evidence \emph{against} a candidate, as in an outfit. Which different labels go together is
+left to the item-level counts $N$, of which a label-level table would be a coarser summary.
 
-\subsection{Gate}
+\paragraph{Graph.} Direct co-occurrence with the seeds, discounted for items bundled with everything, plus a learned
+popularity prior $\rho$ (a small MLP):
+\begin{equation}
+G(S,c)=\theta\log\Big(1+\textstyle\sum_{s\in S}N_{sc}\deg_s^{-\alpha}\deg_c^{-\beta}\Big)+\rho\big(\log(1+f_c)\big).
+\end{equation}
 
-The gate reads three statistics of the query: its size $\log|S|$, the mean seed frequency
-$\tfrac{1}{|S|}\sum_{s\in S}\log(1+f_s)$ and the share of seeds with $f_s=0$. From these $u(S)$ it returns the weights $w(S)=\mathrm{softplus}(\mathrm{MLP}(u(S)))$, one per term. A query
-whose seeds were never bundled has no co-occurrence evidence, and the gate can move weight to content and labels.
+\paragraph{Gate.} $w(S)=\mathrm{softplus}(\mathrm{MLP}(u(S)))$ reads three query statistics: $\log|S|$, the mean seed
+$\log(1+f_s)$ and the share of seeds with $f_s=0$. A query whose seeds were never bundled has no co-occurrence
+evidence, and the gate can move weight to content and labels.
 
-\subsection{Training without leakage}
+\paragraph{Training without leakage.} Each step takes 32 training bundles and hides part of each (half of its items
+with probability $1/2$, otherwise a uniform cut). A hidden item $j$ is compared with all items outside the bundle by
+the loss $\mathrm{softplus}(\mathrm{LSE}_{c\notin b}\,s(c\mid S)-s(j\mid S))$. A training bundle $b$ is part of $N$,
+$f$, $\deg$ and $H$; left there, the counts between its seeds and hidden items would contain the answer, which no test
+query has. So each training bundle is scored with its own contribution removed: $N_{sc}-1$ for pairs inside $b$,
+$\deg-(|b|-1)$ and $f-1$ for its members, and the same correction in $H$. Only the seeds' rows are touched.
 
-\paragraph{Examples and loss.} Each step takes 32 training bundles and hides a random part of each: half of the items
-with probability $1/2$, otherwise a uniform cut, so that queries of all sizes are seen. The visible items are the
-seeds. Each hidden item $j$ competes with all catalogue items outside its bundle through the loss
-$\mathrm{softplus}(\mathrm{LSE}_{c\notin b}\,s(c\mid S)-s(j\mid S))$, averaged over hidden items.
-
-\paragraph{Leave-one-out statistics.} A training bundle $b$ is part of $N$, $f$, $\deg$ and $H$. If it stayed there,
-the counts between its seeds and its hidden items would contain the answer, and the model would learn to trust
-co-occurrence far more than it should at test time, where no such count exists. So each training bundle is scored
-with its own contribution removed: $N_{sc}-1$ for pairs inside $b$, $\deg-(|b|-1)$ and $f-1$ for its members, and
-the same correction in $H$. Only the counts of the seeds' rows are touched, so the correction is cheap.
-
-\paragraph{Cross-fitted label factors.} The SVD factors cannot be corrected exactly for one bundle. The training
-bundles are therefore split into five folds (identical bundles share a fold), and a bundle in fold $k$ is scored
-with factors computed without fold $k$. Evaluation uses factors from all training bundles.
-
-\paragraph{One configuration.} Content rank 64, label rank 16, AdamW with learning rate $10^{-2}$ for the small
-relation parameters and $10^{-3}$ for the content maps, weight decay $10^{-3}$, early stopping on validation NDCG@20
-with patience 6 and at most 100 epochs. Nothing is tuned per dataset. The model has 41,624 parameters, 41,978 with two
-label levels, independent of $n$.
+\paragraph{One configuration.} AdamW \cite{adamw} (learning rate $10^{-2}$ for the relation parameters, $10^{-3}$ for
+the content maps and encoder, weight decay $10^{-3}$), early stopping on validation NDCG@20. Initialization makes
+training start from plain feature similarity with every term weighted 1 and no degree discount. Nothing is tuned per
+dataset, and the e-commerce datasets were not used during development. The 41,368 parameters (41,466 with two label
+levels) are 32,768 in the content maps, 8,352 in the encoder and 248--346 in the label score, graph and gate,
+independent of $n$. Setup computes the counts once; a query reads $\sum_{s\in S}\deg_s$ stored counts and one
+$64\times n$ product.
 
 % =====================================================================================================================
-\section{Experiments}
+\section{Experimental Setup}
 
-We ask four questions. Does DIALS rank the missing items better than neural and simple baselines under one protocol
-(Section~\ref{sec:main})? Which parts matter (Section~\ref{sec:ablation})? How much training data does it need
-(Section~\ref{sec:budget})? And what does it learn (Section~\ref{sec:learned})?
-
-\subsection{Setup}
-
-\paragraph{Datasets.} We use the seven public datasets that come with real bundles (Table~\ref{tab:data}). POG and
-POG\_DENSE are outfits from Alibaba iFashion \cite{pog}, and Spotify and Spotify\_sparse are playlists from the RecSys
-Challenge 2018 \cite{spotify}, all with the train, validation and test files released with CLHE \cite{clhe}, used
-unchanged. Each test bundle comes split into seeds and held-out items. Electronic, Food and Clothing are product
-bundles released by Sun et al.\ \cite{bundlerec}; we remove duplicate bundles, split them 70/10/20 with a fixed seed
-and hide half of each validation and test bundle. Item features are the released ones, the same for every method:
-BLIP image and text embeddings \cite{blip} for POG and CLAP audio and text embeddings \cite{clap} for Spotify. The
-e-commerce data have no released features, so we use TF-IDF of the item titles. All features are projected to 128
-dimensions by a truncated SVD.
+\paragraph{Datasets} (Table~\ref{tab:data}). POG and POG\_DENSE are outfits made by Taobao's fashion experts
+\cite{pog}, Spotify and Spotify\_sparse playlists made by Spotify users \cite{spotify}, all with the split files
+released with CLHE \cite{clhe}, used unchanged. Electronic, Food and Clothing are bundles marked by crowd workers in
+Amazon shopping sessions \cite{bundlerec}; we remove duplicate bundles and bundles with fewer than two distinct items,
+split 70/10/20 with a fixed seed and hide half of each validation and test bundle.
 
 \begin{table}[t]
 \centering
-\caption{Datasets. Size: mean items per training bundle. Labels: values per level (category; artist, album).
-Test: test queries, with clean ones in brackets when some test bundles also occur in training or validation.}
+\caption{Datasets. Size: mean items per training bundle. Labels: values per level. Test: queries, clean ones (whose
+bundle occurs in neither training nor validation) in brackets.}
 \label{tab:data}
-\setlength{\tabcolsep}{4pt}
-\small
+\setlength{\tabcolsep}{3pt}
+\scriptsize
 \begin{tabular}{llrrrrl}
 \toprule
-Domain & Dataset & Items & Train & Size & Test & Labels\\
+Bundles made by & Dataset & Items & Train & Size & Test & Labels\\
 \midrule
-E-commerce & Electronic & 3,499 & 1,211 & 3.5 & 346 & 479\\
+crowd workers & Electronic & 3,499 & 1,211 & 3.5 & 346 & 479\\
  & Food & 3,767 & 1,232 & 3.5 & 353 & 836\\
  & Clothing & 4,487 & 1,294 & 3.3 & 371 & 2,033\\
-Fashion & POG\_DENSE & 31,217 & 20,780 & 3.6 & 5,938 (5,547) & 67\\
+fashion experts & POG\_DENSE & 31,217 & 20,780 & 3.6 & 5,938 (5,547) & 67\\
  & POG & 48,676 & 14,000 & 3.6 & 4,000 (3,995) & 72\\
-Music & Spotify\_sparse & 213,325 & 8,740 & 44.2 & 2,498 (2,497) & 43,039; 98,674\\
+playlist users & Spotify\_sparse & 213,325 & 8,740 & 44.2 & 2,498 (2,497) & 43,039; 98,674\\
  & Spotify & 254,155 & 14,000 & 63.6 & 4,000 (3,995) & 49,164; 116,217\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Protocol.} Every method ranks the full catalogue with the seeds removed, and we report Recall@20 and
-NDCG@20. Some released test bundles of POG and Spotify also occur, complete, in the training or validation files; a
-method that memorizes bundles gets them for free, so we report \emph{clean} test queries, which exclude them
-(Table~\ref{tab:data}). Learned models are run with seeds 0, 1 and 2, and per-query metrics are averaged over seeds.
+\paragraph{Protocol.} Every method ranks the full catalogue with the seeds removed; we report Recall@20 and NDCG@20 on
+clean test queries, so that a method cannot score by memorizing a test bundle that also occurs in training. Exact ties
+go to the lower item ID. Learned models run with three seeds, and per-query metrics are averaged over them.
 Differences come with a 95\% paired bootstrap interval and a paired sign-flip test, both resampling clusters of
-identical bundles, with Holm's correction within each table.
+identical bundles \cite{efron1993,smucker2007}, with Holm's correction \cite{holm1979} within each table. Ranking the
+full catalogue avoids the bias of sampled metrics \cite{krichene2020}.
 
-\paragraph{Baselines.} \emph{Simple:} popularity, co-occurrence, ItemKNN \cite{sarwar2001}, RP3$\beta$
-\cite{rp3beta}, EASE \cite{steck2019}, GF-CF \cite{gfcf}, SGFCF \cite{sgfcf}, iALS \cite{hu2008}, a blend of ItemKNN
-with content cosine, and four label-aware methods that use DIALS's labels: same-label counts, label transition
-probabilities, and the better of the two blended with ItemKNN, with and without content (EASE is too large for
-Spotify). Every method is tuned on validation NDCG@20, and the best one per dataset is chosen on validation as well. \emph{Neural:} CLHE \cite{clhe} and RaMen \cite{ramen},
-run with the authors' code and settings chosen on validation. Both use the same item features as DIALS. Their user or
-item graphs are built from training bundles only, the information DIALS has. RaMen's item--item graph builder is not
-released, so we rebuilt it from the paper. On full Spotify, CLHE ran at batch size 128 instead of 256 to fit in GPU
-memory, and only one of three seeds finished within the 12-hour limit, so it is not tested there. We did not rerun
-RaMen on POG and Spotify and quote its published numbers, which use the same split files.
+\paragraph{Baselines.} \emph{Simple:} popularity, co-occurrence, ItemKNN, RP3$\beta$, EASE, GF-CF, SGFCF, iALS, a
+blend of ItemKNN with content cosine, and four label-aware methods (same-label counts, label transitions, and the
+better of the two blended with ItemKNN, with and without content). Each gets a validation grid (1 to 24 settings, more with the prior), and
+the best method per dataset is chosen on validation. \emph{Neural:} CLHE and RaMen, rerun as released with settings
+chosen on validation (the best of CLHE's four released settings and 10 RaMen settings on e-commerce), with user and
+item graphs from training bundles only. RaMen's item--item graph is not released, so we built it as its paper
+describes. We quote RaMen's published numbers on POG and Spotify (same split files); on full Spotify only one CLHE seed
+finished within 12 hours, so it is not tested there. TRIAD uses one configuration everywhere.
 
-\subsection{Main results}
-\label{sec:main}
+\paragraph{Equal information.} The released catalogues hold exactly the items that occur in some training, validation
+or test bundle. So the 19--25\% of items that occur in no training bundle ($f=0$) are all items of validation or test
+bundles, and they are likely targets: 41--67\% of e-commerce test targets, 23\% on POG\_DENSE, 59\% on POG, 29\% on
+Spotify\_sparse and 14\% on Spotify have $f=0$. No test answer is used, but a model trained with a full-catalogue loss
+can learn this. TRIAD does, from training data alone: under leave-one-out, a training target that occurs in no other
+training bundle has $f=0$ and competes with the other $f=0$ items, and the gap in base rate between $f=0$ and $f=1$
+measured this way is within .25 of the gap on test on every dataset. The learned bonus $w_G(\rho(0)-\rho(\log 2))$ on
+Electronic is already 2.0 after one epoch. Frequency-based baselines rank $f=0$ items last \cite{abdollahpouri2017}.
+To compare fairly, we give the five main simple baselines (ItemKNN, RP3$\beta$, EASE, content+ItemKNN,
+label+ItemKNN+content) the same prior, $\lambda\,b(f_c)$ added to the max-scaled score with $b$ the base rate of
+validation targets by frequency and $\lambda\in\{0,.01,\dots,3\}$ chosen on validation, and we report TRIAD without
+the bonus ($\rho$ of $f=0$ items set to its value at $f=1$).
+
+% =====================================================================================================================
+\section{Results}
 
 \begin{table}[t]
 \centering
-\caption{Recall@20 / NDCG@20 on clean test queries (mean of three seeds). Best simple: the baseline chosen on
-validation (cont.+kNN: content+ItemKNN blend; lab.+kNN+cont.: label+ItemKNN+content). $\Delta$: DIALS minus best simple in NDCG@20, with a 95\% interval. All 14 DIALS--best-simple tests
-(7 datasets $\times$ 2 metrics) and all 12 DIALS--CLHE and 6 DIALS--RaMen tests reject at $p<0.05$ after Holm.
-$^\dagger$Published number on the same split files, all test queries, not rerun. $^\ddagger$One seed, not tested.}
+\caption{Recall@20 / NDCG@20 on clean test queries (learned models: mean of three seeds). Simple baselines may use the
+frequency prior ($\lambda$ chosen on validation). Bold: best per metric, TRIAD w/o bonus excluded. Trained parameters
+in the last row. $^\dagger$Published, all test queries. $^\ddagger$One of three seeds, all test queries.}
 \label{tab:main}
-\setlength{\tabcolsep}{3pt}
+\setlength{\tabcolsep}{2.5pt}
+\scriptsize
 \resizebox{\textwidth}{!}{%
-\small
-\begin{tabular}{lllllll}
+\begin{tabular}{lccccccc}
 \toprule
-Dataset & Best simple & & CLHE & RaMen & DIALS & $\Delta$ NDCG [CI]\\
+Method & Electronic & Food & Clothing & POG\_DENSE & POG & Spotify\_sparse & Spotify\\
 \midrule
-Electronic & cont.+kNN & .432 / .299 & .362 / .260 & .344 / .254 & \textbf{.469 / .335} & +.036 [.016, .057]\\
-Food & lab.+kNN+cont. & .546 / .412 & .370 / .272 & .352 / .274 & \textbf{.586 / .439} & +.027 [.008, .048]\\
-Clothing & lab.+kNN+cont. & .446 / .333 & .241 / .186 & .238 / .191 & \textbf{.534 / .388} & +.055 [.033, .078]\\
-POG\_DENSE & RP3$\beta$ & .345 / .241 & .349 / .248 & -- & \textbf{.376 / .280} & +.040 [.036, .043]\\
-POG & lab.+kNN+cont. & .036 / .023 & .026 / .017 & .038 / .023$^\dagger$ & \textbf{.054 / .031} & +.008 [.006, .010]\\
-Spotify\_sparse & lab.+kNN+cont. & .147 / .205 & .097 / .115 & -- & \textbf{.184 / .256} & +.051 [.046, .056]\\
-Spotify & lab.+kNN+cont. & .147 / .247 & .108 / .179$^\ddagger$ & .109 / .188$^\dagger$ & \textbf{.167 / .282} & +.036 [.031, .040]\\
+ItemKNN & .352 / .248 & .338 / .262 & .238 / .194 & .340 / .232 & .029 / .019 & .116 / .149 & .130 / .219\\
+RP3$\beta$ & .353 / .255 & .342 / .275 & .238 / .195 & .345 / .241 & .030 / .020 & .118 / .149 & .124 / .210\\
+EASE & .354 / .254 & .342 / .267 & .238 / .201 & .333 / .237 & .029 / .019 & -- & --\\
+Content+ItemKNN & .435 / .312 & .583 / .460 & .582 / .427 & .340 / .232 & .029 / .019 & .120 / .155 & .133 / .223\\
+Label+ItemKNN+content & .437 / .320 & .594 / .464 & \textbf{.594} / \textbf{.440} & .342 / .249 & .036 / .023 & .151 / .209 & .147 / .247\\
 \midrule
-\multicolumn{2}{l}{Trained parameters} & -- & 0.75\,M--29\,M & 1.3\,M--67\,M & 41.6\,k & \\
+CLHE & .362 / .259 & .419 / .271 & .325 / .196 & .349 / .248 & .026 / .017 & .097 / .115 & .108 / .179$^\ddagger$\\
+RaMen & .345 / .256 & .345 / .265 & .240 / .190 & -- & .037 / .023$^\dagger$ & -- & .109 / .188$^\dagger$\\
+\midrule
+TRIAD & \textbf{.467} / \textbf{.335} & \textbf{.618} / \textbf{.474} & .593 / .439 & \textbf{.374} / \textbf{.278} & \textbf{.052} / \textbf{.031} & \textbf{.184} / \textbf{.256} & \textbf{.167} / \textbf{.282}\\
+\emph{TRIAD w/o unseen-item bonus} & .405 / .306 & .581 / .445 & .485 / .355 & .374 / .278 & .048 / .029 & .183 / .255 & .167 / .282\\
+\midrule
+Parameters: TRIAD / CLHE / RaMen & 41\,k / 3.7\,M / 1.3\,M & 41\,k / 3.7\,M / 1.4\,M & 41\,k / 3.8\,M / 1.6\,M & 41\,k / 7.3\,M / 11.6\,M & 41\,k / 9.5\,M / 16.1\,M & 41\,k / 29\,M / 56.5\,M & 41\,k / -- / 67\,M\\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-Table~\ref{tab:main} gives the results. Three things stand out.
+\begin{table}[t]
+\centering
+\caption{TRIAD minus the best simple baseline (chosen on validation over all thirteen; $^{*}$: with the prior), clean
+test queries: $\Delta$ NDCG@20 with 95\% cluster-bootstrap interval and Holm-corrected sign-flip $p$ over 14 tests
+(bold: $p<.05$).}
+\label{tab:tests}
+\setlength{\tabcolsep}{3pt}
+\scriptsize
+\resizebox{\textwidth}{!}{\input{tables/tests}}
+\end{table}
 
-\paragraph{DIALS is ahead on every dataset.} Against the best simple baseline the gap in NDCG@20 ranges from +.008
-on POG to +.055 on Clothing, and every interval excludes zero. The smallest margins are on Food (+.027) and POG
-(+.008, on a dataset where all methods score low).
+\paragraph{Outfits and playlists: TRIAD is clearly ahead.} On POG\_DENSE, POG, Spotify\_sparse and Spotify, TRIAD
+leads the best simple baseline by +.037, +.007, +.048 and +.035 NDCG@20, and all eight tests reject after Holm
+(Tables~\ref{tab:main},~\ref{tab:tests}). Without the unseen-item bonus the margins hardly change.
 
-\paragraph{Tuned simple baselines are strong.} The best simple baseline is ahead of CLHE on five of the six datasets
-where CLHE was rerun; on POG\_DENSE, CLHE is slightly ahead. On e-commerce, CLHE and RaMen trail the best simple
-baseline by .04--.15 NDCG@20. This agrees
-with earlier findings in recommendation \cite{dacrema}, and it means that a gain over CLHE or RaMen alone says little.
+\paragraph{E-commerce: level with a simple baseline that has the same information.} Against the content+ItemKNN blend
+with the prior, TRIAD is ahead on average (+.022, +.014, +.011 NDCG@20), but only Food's Recall@20 is significant
+after Holm, and on Clothing a label+ItemKNN+content blend scores .440 against TRIAD's .439. Without the bonus TRIAD is
+behind on all three, significantly on Clothing ($-$.072). On short e-commerce bundles most of TRIAD's lead therefore
+comes from how it treats items that no training bundle contains.
 
-\paragraph{CLHE and RaMen.} Our CLHE reruns are close to the numbers RaMen reports for CLHE on the same split files: .026 / .017 against .028 / .019 on POG, and .108 / .179 against .108 / .181 on Spotify. On these two datasets RaMen's published numbers are above CLHE's (.038 / .023 on POG, .109 / .188 on Spotify), as RaMen reports. On e-commerce, where we rerun both with training-only graphs, the two are close to each other.
+\paragraph{Neural models trail TRIAD and, mostly, simple methods.} TRIAD is ahead of CLHE by +.013 to +.242 NDCG@20 on
+the six datasets where it was rerun and of RaMen by +.078 to +.249 on e-commerce; all 18 of these tests and their
+Recall@20 counterparts reject after Holm. The best simple method matches or beats CLHE everywhere (on POG\_DENSE
+.249 against .248) and beats RaMen on e-commerce by .06--.25. Our CLHE reruns are close to the numbers RaMen reports
+for CLHE on the same split files (.017 against .019 NDCG@20 on POG, .179 against .181 on Spotify). RaMen reports
+Recall@20 of .837 and .846 on Electronic and Food on an unreleased split; the data's user--item file holds the items
+of every bundle, test bundles included, and RaMen rerun on our split with a graph from it reaches .505 / .490 / .499
+instead of .345 / .345 / .240. A separate purchase log in the release does not contain the test bundles and does not
+help RaMen or CLHE.
 
-\paragraph{Labels help simple methods too, but do not explain DIALS's lead.} A label-aware method is the best simple
-baseline on five datasets, so labels carry real signal. DIALS uses the same labels and still leads each of them.
-
-\paragraph{About published e-commerce numbers.} RaMen reports Recall@20 of .837 on Electronic and .846 on Food
-\cite{ramen} on a split that is not released. Its released user--item file contains the items of every bundle,
-test bundles included, so a graph built from it links each test target to its seeds. Rerun on our split with that
-file, RaMen reaches .499 / .489 / .483 Recall@20 on Electronic / Food / Clothing, against .344 / .352 / .238 with a
-graph from training bundles only. We report the latter, which uses the same information as every other method.
-
-\paragraph{Cost.} DIALS has no per-item parameters and needs 0.1\,ms per query on e-commerce, 0.4--0.5\,ms on POG and
-2.4--3.2\,ms on Spotify on four CPU threads, after a one-time computation of the counts and label factors.
-
-\subsection{Ablations}
-\label{sec:ablation}
-
-We retrain DIALS with one part removed at a time, with the same configuration and seeds, on the six datasets other
-than full Spotify, where one training run takes 1--1.5\,h of CPU time (Table~\ref{tab:ablation}).
-
-Co-occurrence, leave-one-out training and content help on all six datasets; co-occurrence most on e-commerce. Without
-leave-one-out a training bundle's own pairs stay in its counts, and the model learns to read the answer from them
-(training loss 2.6 against 6.9 on POG\_DENSE). The gate matters on the small e-commerce catalogues. The label terms
-matter on playlists, almost entirely through the same-label diagonal (a track by a seed's artist); elsewhere they add
-at most .015, not significant after correction. The low-rank label part and cross-fitting change NDCG@20 by at most
-.006 anywhere: cross-fitting prevents a leak in principle, but we cannot measure one here.
+\paragraph{The bonus follows the catalogue, not the split.} On Electronic and Food we retrained TRIAD on two fresh
+random splits and on the published split with $P=1$, 4 and 16 times $n_0$ never-bundled items added to the catalogue
+($n_0$: items with $f=0$), each a copy of a random item's features and category. Across the published and fresh splits the learned bonus
+stays at 1.4--1.9 and still adds .017--.042 NDCG@20 (all significant), and TRIAD stays level with the best simple
+baseline with the prior (+.011 to +.025, none significant; Holm over 48 tests). With padding the learned bonus falls
+with the base rate the test calls for, from training data alone, and becomes a penalty at $16n_0$; its gain falls
+from .028 and .029 to .007 and .013 at $P=n_0$ and to zero from $4n_0$, while TRIAD stays level with the best simple
+baseline ($-$.009 to +.014, none significant). The copies are not a real store catalogue, but the direction is clear:
+the bonus is a property of these benchmarks.
 
 \begin{table}[t]
 \centering
-\caption{Ablations: NDCG@20 of the full model minus the ablated model, clean test queries, three seeds per side.
-Positive: the part helps. Bold: Holm-corrected $p<0.05$ (12 tests per row: 6 datasets $\times$ NDCG@20 and
-Recall@20). First row: NDCG@20 of the full model. Without leave-one-out, training on POG\_DENSE diverged after 12--13
-epochs; its best validation epoch is used.}
+\caption{Under other papers' protocols, without retraining. Top: HitRate@1 among 10 candidates (Bundle-MLLM's protocol);
+every question (POG) or 8,192 sampled ones (Spotify, at most 5 seeds shown, as Bundle-MLLM does), three seeds $\times$
+five draws. Bundle-MLLM and CLHE: published in Bundle-MLLM's paper (2,048 questions). Simple: the best simple baseline
+of Table~\ref{tab:tests} on the same questions. Bottom: F1 / Jaccard under DDBC's pool protocol; DDBC rerun from its
+released checkpoints on the same pools; simple: best on validation, without the prior; best baseline in DDBC's paper
+published. Paired tests TRIAD $-$ simple (HitRate@1, Holm over 4) and TRIAD $-$ DDBC (Holm over 8): all $p<.001$.}
+\label{tab:protocols}
+\setlength{\tabcolsep}{3pt}
+\scriptsize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+HitRate@1 & TRIAD & TRIAD w/o bonus & Simple & Bundle-MLLM & CLHE\\
+\midrule
+POG\_DENSE & \textbf{.771} & .743 & .617 & .668 & .637\\
+POG & \textbf{.624} & .513 & .306 & .413 & .348\\
+Spotify\_sparse & \textbf{.814} & .816 & .641 & .796 & .723\\
+Spotify & \textbf{.841} & .841 & SPOTSIMPLE & .824 & .757\\
+\midrule
+F1 / Jaccard & TRIAD & TRIAD w/o bonus & Simple & DDBC (rerun) & Best in DDBC's paper\\
+\midrule
+POG\_DENSE $k{=}4$ & \textbf{.483 / .392} & .482 / .391 & RP3$\beta$ .452 / .360 & .138 / .099 & TIGER .213 / .157\\
+Spotify $k{=}30$ & \textbf{.625 / .482} & .625 / .482 & blend .540 / .402 & .279 / .176 & BundleNAT .153 / .090\\
+Spotify $k{=}60$ & \textbf{.643 / .495} & .643 / .495 & blend .560 / .413 & .285 / .178 & TIGER .129 / .076\\
+Spotify $k{=}90$ & \textbf{.651 / .501} & .651 / .501 & blend .561 / .412 & .278 / .171 & TIGER .123 / .070\\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{Bundle-MLLM's and DDBC's protocols.} Both evaluate on CLHE's split files with sampled candidates
+(Table~\ref{tab:protocols}). \emph{Bundle-MLLM} asks, for each (test bundle, held-out item), which of 10 candidates
+(the item and 9 random items from outside the bundle) belongs. Its checkpoints cannot be rerun with the inputs they
+were trained on: its prompts use English item titles that are not released, and it uses BLIP2 image features released
+only for POG. Against its published numbers TRIAD is ahead by .10--.21 on POG and POG\_DENSE, and by .017 and .018 on
+the two Spotify sets, about two standard errors of a 2,048-question estimate, so we do not claim the Spotify margins as
+significant. Here the tuned simple methods fall \emph{below} Bundle-MLLM, likely because negatives come from the
+whole catalogue and a co-occurrence score has nothing to rank an $f=0$ target above them; the gap is largest on POG,
+where 59\% of targets have $f=0$. \emph{DDBC} splits windows of our test
+bundles 1:1 into seeds and targets and ranks the targets among 99 random items each. Its checkpoints reproduce its
+published F1 on its own pools (.137--.278 against .139--.287), yet a tuned simple method triples it on POG\_DENSE and
+roughly doubles it on Spotify, and TRIAD is higher still. The unseen-item bonus changes F1 by at most .001 here.
+
+\begin{table}[t]
+\centering
+\caption{Ablations: NDCG@20 of the full model minus the ablated model (clean test, three seeds per side). Bold: Holm
+$p<.05$ over 12 tests per row. First row: NDCG@20 of the full model.}
 \label{tab:ablation}
 \setlength{\tabcolsep}{3pt}
 \scriptsize
@@ -371,121 +384,107 @@ epochs; its best validation epoch is used.}
 \toprule
 Removed part & Electronic & Food & Clothing & POG\_DENSE & POG & Spotify\_sparse\\
 \midrule
-\emph{full model (NDCG@20)} & .335 & .439 & .388 & .280 & .031 & .256\\
+\emph{full model (NDCG@20)} & .335 & .474 & .439 & .278 & .031 & .256\\
 \midrule
-same-label diagonal $\deltab_l$ & .000 & .013 & .015 & .001 & .001 & \textbf{.086}\\
-related-label low rank ($M=0$) & .003 & .002 & $-$.002 & \textbf{.002} & .001 & .000\\
-cross-fitting of $P,Q$ & .006 & .000 & .000 & .000 & .000 & .000\\
-leave-one-out statistics & \textbf{.056} & \textbf{.139} & \textbf{.138} & \textbf{.073} & \textbf{.010} & \textbf{.112}\\
-gate (all weights 1) & \textbf{.057} & \textbf{.032} & \textbf{.036} & \textbf{.002} & .001 & \textbf{.008}\\
-content term & \textbf{.044} & \textbf{.092} & \textbf{.101} & \textbf{.022} & \textbf{.007} & \textbf{.016}\\
-label terms & .004 & .014 & .015 & \textbf{.005} & \textbf{.002} & \textbf{.088}\\
-graph term & \textbf{.177} & \textbf{.155} & \textbf{.136} & \textbf{.017} & \textbf{.018} & \textbf{.059}\\
-training (initial parameters) & \textbf{.205} & \textbf{.257} & \textbf{.258} & \textbf{.179} & \textbf{.030} & \textbf{.117}\\
+leave-one-out statistics & \textbf{.054} & \textbf{.140} & \textbf{.165} & \textbf{.073} & \textbf{.010} & \textbf{.112}\\
+gate (all weights 1) & \textbf{.065} & \textbf{.036} & \textbf{.031} & \textbf{.002} & .001 & \textbf{.008}\\
+content term & \textbf{.046} & \textbf{.125} & \textbf{.153} & \textbf{.031} & \textbf{.010} & \textbf{.016}\\
+label terms & .002 & .002 & .009 & \textbf{.003} & \textbf{.002} & \textbf{.088}\\
+graph term & \textbf{.185} & \textbf{.172} & \textbf{.152} & \textbf{.014} & \textbf{.019} & \textbf{.059}\\
+training (initial parameters) & \textbf{.159} & \textbf{.129} & \textbf{.179} & \textbf{.177} & \textbf{.030} & \textbf{.117}\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{How much training data does DIALS need?}
-\label{sec:budget}
-
-A retailer that starts with bundle completion has few example bundles. We train DIALS and retune every simple
-baseline on nested random subsets of the training bundles (3,000, 1,000, 600, 300, 100 and 50; POG and POG\_DENSE at
-10\% and 1\%), with the same validation and test queries. For each subset we retune ten of the simple baselines (all but GF-CF,
-SGFCF and iALS) and compare DIALS with the one chosen on validation (Fig.~\ref{fig:budget}).
+\paragraph{Ablations} (Table~\ref{tab:ablation}; full Spotify omitted, 1--1.5\,h of CPU per run). Co-occurrence,
+leave-one-out training and content help on all six datasets. Without leave-one-out the model learns to read the answer
+from a bundle's own counts (training loss 2.6 against 6.5 on POG\_DENSE). The gate matters most on the small
+e-commerce catalogues, and the label terms on playlists.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=.92\textwidth]{figs/fig3_budget.pdf}
-\caption{DIALS minus the best simple baseline (NDCG@20, clean test, 95\% interval) as training bundles are removed,
-against the number of bundles (left) and the number of item pairs they contain (right).}
+\caption{TRIAD minus the best simple baseline (with the prior allowed, chosen on validation for every subset), NDCG@20
+on clean test with 95\% interval, against the number of training bundles (left) and of item pairs they contain
+(right).}
 \label{fig:budget}
 \end{figure}
 
-\paragraph{Playlists: DIALS leads at every size.} On Spotify and Spotify\_sparse, DIALS stays ahead down to 50
-playlists (+.012 and +.004 NDCG@20), and all 28 tests reject after Holm. The lead shrinks steadily as bundles are
-removed.
+\paragraph{How much training data?} We train TRIAD and retune ten simple baselines (with the prior) on nested random
+subsets of the training bundles, with the same validation and test queries (Fig.~\ref{fig:budget}; Holm within each
+domain over all subsets and both metrics). On playlists TRIAD stays ahead down to 50 bundles (+.012 and +.004 NDCG@20;
+all 28 tests reject). On POG\_DENSE it stays ahead with 10\% and 1\% of the outfits (+.025, +.017); on POG it is
++.002 with 10\% ($p=.06$) and $-$.001 with 1\%, where every method scores below .004. On e-commerce it is never
+significantly ahead from 1,200--1,300 bundles down to 300, and with 100 and 50 bundles it is behind by .006--.029,
+significantly on Food and Clothing. This is overfitting, not too few steps: matching the full data's number of
+gradient steps changes test NDCG@20 by at most .02, while validation NDCG peaks after the first epoch. Bundle count
+alone does not predict the outcome: 50 playlists hold more item pairs than any full e-commerce training set.
 
-\paragraph{Small e-commerce bundles: DIALS needs about 1,000.} On Electronic, Food and Clothing, DIALS is ahead with
-all of their 1,200--1,300 bundles, level with 600, and behind with 300 or fewer, by .03--.09 NDCG@20. All nine
-intervals at 300 and below lie under zero.
-
-\paragraph{The cause is overfitting.} Two checks on the e-commerce subsets point the same way. Repeating the bundles
-so that each epoch has as many gradient steps as on the full data does not help: validation NDCG peaks after one to
-six epochs and then falls while the training loss keeps dropping (Food, 50 bundles: loss 6.47 to 0.43, validation
-NDCG .167 to .114). The untrained model, at its initial parameters, scores below the trained one in eight of nine
-cases, so training helps, but it does not reach the tuned label+ItemKNN+content scorer before it overfits.
-
-\paragraph{What predicts the outcome.} Bundle count alone does not: 50 playlists are enough, 300 product bundles are
-not. A playlist holds about 1,700--3,300 item pairs, a product bundle about 6, so 50 playlists contain more pairs than
-all e-commerce training sets (Fig.~\ref{fig:budget}, right). Pairs alone do not decide it either: POG\_DENSE at 1\%
-(952 pairs) still favours DIALS, because 34\% of its test targets occur in those bundles. In our data, DIALS fell
-behind only when both were small, under about 2,000 pairs and at most 28\% of test targets seen. This is an
-observation on seven datasets, not a tested rule. For practice it suggests: with long bundles, train DIALS from the
-start; with short bundles and fewer than about 1,000 of them, use a tuned label+ItemKNN+content scorer.
-
-\subsection{What DIALS learns}
-\label{sec:learned}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=.62\textwidth]{figs/fig4_delta.pdf}
-\caption{The learned same-label score $\deltab_l$ for one shared seed ($m=1$) at the median query size, against the
-size of the label (mean of three seeds, band: min to max). It is negative for fashion and positive for music and
-e-commerce.}
-\label{fig:delta}
-\end{figure}
-
-The same-label term $\deltab_l$ starts as a small random MLP, and its sign is not fixed. After training it differs
-by domain (Fig.~\ref{fig:delta}). On POG and POG\_DENSE it is negative for every label size: an outfit rarely takes
-two items of the same category, so sharing a seed's category counts against a candidate. On Spotify it is strongly
-positive for small artists: playlists return to the same artist, and an artist with few songs is a sharp signal. On
-e-commerce, where the labels are fine-grained, a shared label helps when the label is small and the bonus fades for
-large labels. One configuration recovers these opposite patterns from the data alone.
+\paragraph{What TRIAD learns.} Every trained part is a function of a few inputs, so it can be read. The same-label
+score $\deltab_l$ starts with no fixed sign and ends with the sign of the domain: strongly negative on outfits
+($-$22.5 on POG\_DENSE, $-$6.17 on POG, for one shared seed at the median label size), so a candidate in a seed's
+category is pushed out of the shortlist, and positive on playlists (+1.88 for a shared artist, +1.17 for a shared
+album on Spotify\_sparse) and mildly positive on e-commerce. The gate's content weight rises on every dataset as the
+share of unseen seeds goes from 0 to 1 (by 18--27\% on e-commerce, 24--44\% on POG, 50--64\% on Spotify). The
+weighted prior $w_G\rho$ follows the base rate of targets by frequency bin (correlation .93--1.00 over bins; Clothing has only two bins, and on full
+Spotify, where $\beta\approx-.3$ already favours popular candidates, it is .67--.71).
 
 % =====================================================================================================================
 \section{Conclusion}
 
-We showed that bundle completion does not need a learned representation per item. DIALS learns 41,624 shared
-parameters that weight content similarity, label relations and co-occurrence for each query, and is trained with
-statistics that never contain the training bundle itself. Under one protocol, with neural models rerun on identical
-splits and features, it ranks missing items better than CLHE, RaMen and thirteen tuned simple baselines on seven
-datasets, and its learned label relations are readable.
+Bundle completion does not need a learned representation per item. TRIAD weighs content similarity, label relations
+and co-occurrence with 41,368 shared parameters, trained on statistics that never contain the training bundle itself.
+Under one protocol, with neural models rerun on identical splits and features and simple baselines given the same
+information, it is ahead of CLHE, RaMen and DDBC, above Bundle-MLLM's published numbers, ahead of the best of thirteen
+tuned simple baselines on outfits and playlists, and level with them on short e-commerce bundles. The simple baselines
+themselves match or beat three of the four recent models, which none of those papers tested.
 
-\paragraph{Limitations.} The margins over the best simple baseline are small on POG and Food. On short e-commerce
-bundles, DIALS needs about 1,000 training bundles, and a training-free scorer is better below that. Although DIALS can
-score new items, features find unseen POG targets only at chance level, so new items remain hard. Scoring is linear
-in the catalogue size, so catalogues of millions of items would need a candidate stage. Finally, two of our baseline
-numbers are published, not rerun.
-
-\paragraph{Future work.} A natural next step is to start training from the tuned simple scorer and penalize moving
-away from it, which may remove the small-data gap. Code will be released.
+\paragraph{Limitations.} On e-commerce TRIAD is not significantly ahead of a simple scorer with the same prior, and it
+falls behind with 100 or fewer bundles. The unseen-item bonus is a property of catalogues that hold only bundled
+items; we checked its removal with copied items, not on a real store catalogue. Bundle-MLLM could not be rerun, and
+RaMen on POG and Spotify and CLHE on full Spotify are published or single-seed numbers. Scoring is linear in the
+catalogue size, so millions of items would need a candidate stage. Starting training from the tuned simple scorer may
+close the small-data gap. Code will be released.
 
 \begin{thebibliography}{99}\scriptsize
+\bibitem{abdollahpouri2017} Abdollahpouri, H., Burke, R., Mobasher, B.: Controlling popularity bias in learning-to-rank recommendation. In: RecSys (2017)
 \bibitem{bgn} Bai, J., Zhou, C., Song, J., Qu, X., An, W., Li, Z., Gao, J.: Personalized bundle list recommendation. In: WWW (2019)
-\bibitem{blip} Li, J., Li, D., Xiong, C., Hoi, S.: BLIP: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In: ICML (2022)
 \bibitem{bgcn} Chang, J., Gao, C., He, X., Jin, D., Li, Y.: Bundle recommendation with graph convolutional networks. In: SIGIR (2020)
-\bibitem{pog} Chen, W., et al.: POG: Personalized outfit generation for fashion recommendation at Alibaba iFashion. In: KDD (2019)
 \bibitem{spotify} Chen, C.W., Lamere, P., Schedl, M., Zamani, H.: RecSys Challenge 2018: Automatic music playlist continuation. In: RecSys (2018)
-\bibitem{chernozhukov2018} Chernozhukov, V., Chetverikov, D., Demirer, M., Duflo, E., Hansen, C., Newey, W., Robins, J.: Double/debiased machine learning for treatment and structural parameters. The Econometrics Journal 21(1), C1--C68 (2018)
+\bibitem{pog} Chen, W., et al.: POG: Personalized outfit generation for fashion recommendation at Alibaba iFashion. In: KDD (2019)
+\bibitem{efron1993} Efron, B., Tibshirani, R.J.: An Introduction to the Bootstrap. Chapman \& Hall (1993)
 \bibitem{dacrema} Ferrari Dacrema, M., Cremonesi, P., Jannach, D.: Are we really making much progress? A worrying analysis of recent neural recommendation approaches. In: RecSys (2019)
+\bibitem{gartrell2017} Gartrell, M., Paquet, U., Koenigstein, N.: Low-rank factorization of determinantal point processes. In: AAAI (2017)
 \bibitem{han2017} Han, X., Wu, Z., Jiang, Y.G., Davis, L.S.: Learning fashion compatibility with bidirectional LSTMs. In: ACM MM (2017)
+\bibitem{lightgcn} He, X., Deng, K., Wang, X., Li, Y., Zhang, Y., Wang, M.: LightGCN: Simplifying and powering graph convolution network for recommendation. In: SIGIR (2020)
+\bibitem{holm1979} Holm, S.: A simple sequentially rejective multiple test procedure. Scandinavian Journal of Statistics 6(2), 65--70 (1979)
 \bibitem{hu2008} Hu, Y., Koren, Y., Volinsky, C.: Collaborative filtering for implicit feedback datasets. In: ICDM (2008)
 \bibitem{kapoor2023} Kapoor, S., Narayanan, A.: Leakage and the reproducibility crisis in machine-learning-based science. Patterns 4(9) (2023)
+\bibitem{krichene2020} Krichene, W., Rendle, S.: On sampled metrics for item recommendation. In: KDD (2020)
+\bibitem{lightfm} Kula, M.: Metadata embeddings for user and item cold-start recommendations. In: CBRecSys Workshop at RecSys (2015)
+\bibitem{settransformer} Lee, J., Lee, Y., Kim, J., Kosiorek, A., Choi, S., Teh, Y.W.: Set Transformer: A framework for attention-based permutation-invariant neural networks. In: ICML (2019)
+\bibitem{blip} Li, J., Li, D., Xiong, C., Hoi, S.: BLIP: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In: ICML (2022)
 \bibitem{bundlemllm} Liu, X., Wu, J., Tao, Z., Ma, Y., Wei, Y., Chua, T.S.: Fine-tuning multimodal large language models for product bundling. In: KDD (2025)
+\bibitem{adamw} Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. In: ICLR (2019)
 \bibitem{crosscbr} Ma, Y., He, Y., Zhang, A., Wang, X., Chua, T.S.: CrossCBR: Cross-view contrastive learning for bundle recommendation. In: KDD (2022)
 \bibitem{clhe} Ma, Y., Liu, X., Wei, Y., Tao, Z., Wang, X., Chua, T.S.: Leveraging multimodal features and item-level user feedback for bundle construction. In: WSDM (2024)
 \bibitem{mcauley} McAuley, J., Pandey, R., Leskovec, J.: Inferring networks of substitutable and complementary products. In: KDD (2015)
 \bibitem{ramen} Nguyen, H.S., Nguyen, Q.H., Pham, D.H., Le, D.T., Le, H.Q., Sitkrongwong, P., Takasu, A., Mansoury, M.: RaMen: Multi-strategy multi-modal learning for bundle construction. In: ECAI (2025)
+\bibitem{caro} Nguyen, L.H., Nguyen, H.S., Nguyen, C.V.T., Le, D.T., Takasu, A., Le, H.Q.: Dual-enhanced item representation for bundle construction via category-wise and cross-modality learning. In: SIGIR-AP (2025)
 \bibitem{rp3beta} Paudel, B., Christoffel, F., Newell, C., Bernstein, A.: Updatable, accurate, diverse, and scalable recommendations for interactive applications. ACM TiiS 7(1) (2017)
 \bibitem{sgfcf} Peng, S., Liu, X., Sugiyama, K., Mine, T.: How powerful is graph filtering for recommendation. In: KDD (2024)
+\bibitem{bpr} Rendle, S., Freudenthaler, C., Gantner, Z., Schmidt-Thieme, L.: BPR: Bayesian personalized ranking from implicit feedback. In: UAI (2009)
 \bibitem{rendle2020} Rendle, S., Krichene, W., Zhang, L., Anderson, J.: Neural collaborative filtering vs. matrix factorization revisited. In: RecSys (2020)
 \bibitem{sarwar2001} Sarwar, B., Karypis, G., Konstan, J., Riedl, J.: Item-based collaborative filtering recommendation algorithms. In: WWW (2001)
 \bibitem{gfcf} Shen, Y., Wu, Y., Zhang, Y., Shan, C., Zhang, J., Letaief, K.B., Li, D.: How powerful is graph convolution for recommendation? In: CIKM (2021)
+\bibitem{smucker2007} Smucker, M.D., Allan, J., Carterette, B.: A comparison of statistical significance tests for information retrieval evaluation. In: CIKM (2007)
 \bibitem{steck2019} Steck, H.: Embarrassingly shallow autoencoders for sparse data. In: WWW (2019)
 \bibitem{bundlerec} Sun, Z., Feng, K., Yang, J., Fang, H., Qu, X., Ong, Y.S., Liu, W.: Revisiting bundle recommendation for intent-aware product bundling. ACM TORS 2(3) (2024)
+\bibitem{adabundle} Sun, Z., Feng, K., Yang, J., Qu, X., Fang, H., Ong, Y.S., Liu, W.: Adaptive in-context learning with large language models for bundle generation. In: SIGIR (2024)
 \bibitem{ddbc} Tu, T., Li, A., Ma, Y., Xu, S., Liu, X., Ma, H., Pang, L., Chua, T.S.: Discrete diffusion for bundle construction. In: ICLR (2026)
 \bibitem{vasileva2018} Vasileva, M.I., Plummer, B.A., Dusad, K., Rajpal, S., Kumar, R., Forsyth, D.: Learning type-aware embeddings for fashion compatibility. In: ECCV (2018)
+\bibitem{dropoutnet} Volkovs, M., Yu, G., Poutanen, T.: DropoutNet: Addressing cold start in recommender systems. In: NeurIPS (2017)
 \bibitem{clap} Wu, Y., Chen, K., Zhang, T., Hui, Y., Berg-Kirkpatrick, T., Dubnov, S.: Large-scale contrastive language-audio pretraining with feature fusion and keyword-to-caption augmentation. In: ICASSP (2023)
+\bibitem{deepsets} Zaheer, M., Kottur, S., Ravanbakhsh, S., Poczos, B., Salakhutdinov, R., Smola, A.: Deep sets. In: NeurIPS (2017)
 \end{thebibliography}
 \end{document}

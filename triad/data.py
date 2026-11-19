@@ -8,7 +8,10 @@ truncated SVD. Labels: category (POG); artist and album (Spotify).
 Test queries whose complete bundle also occurs in training or validation are flagged; results are reported on the rest.
 
 Electronic, Food, Clothing (BundleRec release): duplicate bundles removed, a seeded 70/10/20 split, and half of each
-held-out bundle hidden. Features: TF-IDF of item titles, projected to 128 dimensions. Label: category.
+held-out bundle hidden. No features are released, so we embed the item titles with BLIP's text encoder (Li et al.,
+ICML 2022; checkpoint Salesforce/blip-itm-base-coco, the 768-d [CLS] vector, the encoder family of the POG features),
+row-normalize and project to 128 dimensions. Images are not used: Electronic has image URLs for 451 of 3,499 items
+(those tested do not resolve), Food and Clothing have none. Label: category.
 
 Dunnhumby (The Complete Journey): grocery baskets of 3-20 distinct products, a seeded sample of 30,000, products seen
 fewer than twice dropped, duplicate baskets removed, then the same 70/10/20 split and hiding. Features: TF-IDF of
@@ -16,7 +19,7 @@ department, commodity, sub-commodity and brand, projected to 128 dimensions. Lab
 not used.
 
 Data is not part of the repository. By default it sits next to the repository, in <root>/bundlemllm/datasets/<name>,
-<root>/BundleRec/dataset/<name> and <root>/dunnhumby; set DIALS_DATA_ROOT to point elsewhere.
+<root>/BundleRec/dataset/<name> and <root>/dunnhumby; set TRIAD_DATA_ROOT to point elsewhere.
 
 Every loader returns the same Dataset object (ARCHITECTURE.md §2):
 
@@ -38,7 +41,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import normalize
 
 # Data lives outside the repository: by default in the folder that contains it.
-DATA_ROOT=Path(os.environ.get('DIALS_DATA_ROOT') or Path(__file__).resolve().parents[2])
+DATA_ROOT=Path(os.environ.get('TRIAD_DATA_ROOT') or Path(__file__).resolve().parents[2])
 SUPPLIED=['pog_dense','pog','spotify_sparse','spotify']   # released splits, used unchanged
 RESPLIT=['electronic','food','clothing']                   # split by load_resplit
 DATASETS=RESPLIT+SUPPLIED+['dunnhumby']
@@ -61,7 +64,7 @@ def load(name,cache=Path('cache')):
     if name in SUPPLIED:
         return load_supplied(name,Path(cache)/name)
     if name in RESPLIT:
-        return load_resplit(name)
+        return load_resplit(name,cache=cache)
     if name=='dunnhumby':
         return load_baskets()
     raise ValueError(f'unknown dataset {name!r}; known: {DATASETS}')
@@ -171,8 +174,37 @@ def hide(bundles,seed,fraction=.5):
     return out
 
 
-def load_resplit(name,seed=0):
-    """Load Electronic, Food or Clothing: deduplicate bundles, TF-IDF features, category labels, 70/10/20 split."""
+BLIP='Salesforce/blip-itm-base-coco'
+
+
+def blip_titles(titles,cache,batch=64):
+    """768-d [CLS] vectors of BLIP's text encoder, one per title; zero rows for empty titles. Cached per catalogue.
+
+    The cache key is a hash of the titles in item order, so a changed catalogue never reuses a file. Needs the
+    transformers package and, on first use, the checkpoint download.
+    """
+    import hashlib
+    path=Path(cache)/'blip'/f"{hashlib.sha256(chr(0).join(titles).encode()).hexdigest()[:16]}.npy"
+    if path.exists():
+        return np.load(path)
+    from transformers import BlipForImageTextRetrieval,BlipProcessor
+    processor=BlipProcessor.from_pretrained(BLIP)
+    model=BlipForImageTextRetrieval.from_pretrained(BLIP).eval()
+    out=np.zeros((len(titles),model.config.text_config.hidden_size),np.float32)
+    keep=[i for i,t in enumerate(titles) if t.strip()]
+    with torch.inference_mode():
+        for start in range(0,len(keep),batch):
+            rows=keep[start:start+batch]
+            tokens=processor.tokenizer([titles[i] for i in rows],padding=True,truncation=True,max_length=128,return_tensors='pt')
+            hidden=model.text_encoder(input_ids=tokens.input_ids,attention_mask=tokens.attention_mask,return_dict=True).last_hidden_state
+            out[rows]=hidden[:,0].numpy()
+    path.parent.mkdir(parents=True,exist_ok=True)
+    np.save(path,out)
+    return out
+
+
+def load_resplit(name,seed=0,cache=Path('cache')):
+    """Load Electronic, Food or Clothing: deduplicate bundles, BLIP title features, category labels, 70/10/20 split."""
     root=DATA_ROOT/'BundleRec'/'dataset'/name
 
     # Bundles as lists of raw item IDs.
@@ -195,14 +227,13 @@ def load_resplit(name,seed=0):
             seen.add(key)
             bundles.append(b)
 
-    # ---- features: TF-IDF of titles, projected to 128 dimensions -------------------------------------------------
+    # ---- features: BLIP text embeddings of the titles, row-normalized, projected to 128 dimensions -------------------
     titles=['']*n
     for row in read_csv(root/'item_titles.csv'):
         if int(row[0]) in index:
             titles[index[int(row[0])]]=' '.join(row[1:])
-    tfidf=normalize(TfidfVectorizer(max_features=8000,stop_words='english',ngram_range=(1,2),sublinear_tf=True).fit_transform(titles),
-                    norm='l2',axis=1)
-    features=TruncatedSVD(min(128,tfidf.shape[1]-1),random_state=0).fit_transform(tfidf).astype(np.float32)
+    text=normalize(blip_titles(titles,cache),norm='l2',axis=1)
+    features=TruncatedSVD(min(128,text.shape[1]-1),random_state=0).fit_transform(text).astype(np.float32)
 
     # ---- labels: category --------------------------------------------------------------------------------------------
     categories={}

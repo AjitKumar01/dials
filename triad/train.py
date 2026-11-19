@@ -8,7 +8,7 @@ content maps at 1e-3, weight decay 1e-3. The epoch is chosen on validation NDCG@
 See ARCHITECTURE.md §10 (training) and §11 (leakage). The flow of one run is:
 
     fit
-     ├─ build            DIALS(...) with the cached label factors from spectral
+     ├─ build            TRIAD(...): the fixed structures from the training bundles, parameters at initialization
      ├─ for each epoch
      │   ├─ for each batch of 32 training bundles
      │   │   ├─ hide     split each bundle into visible seeds and hidden targets
@@ -24,15 +24,15 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 from .evaluate import evaluate
-from .model import DIALS,cross_fitted_labels
+from .model import TRIAD
 
 # The one configuration used on every dataset; nothing is tuned per dataset.
 #   epochs, patience: at most 100 epochs; stop after 6 without a better validation NDCG@20
 #   batch:            training bundles per step
 #   shared_lr:        content maps and encoder
 #   fast_lr:          the small relation parameters (model.fast_parameters)
-#   rank:             r, rank of the content maps;  label_rank: k, rank of the label factors;  hidden: encoder width
-CONFIG=dict(epochs=100,batch=32,patience=6,shared_lr=.001,fast_lr=.01,weight_decay=.001,rank=64,label_rank=16,hidden=32)
+#   rank:             r, rank of the content maps;  hidden: encoder width
+CONFIG=dict(epochs=100,batch=32,patience=6,shared_lr=.001,fast_lr=.01,weight_decay=.001,rank=64,hidden=32)
 
 
 def log(message):
@@ -49,43 +49,11 @@ def write_json(path,value):
     temporary.replace(path)
 
 
-def spectral(ds,cache,config=CONFIG):
-    """Cross-fitted label factors; cached, since they depend only on the training bundles and labels.
-
-    Returns model.cross_fitted_labels(...): per level, (P_l, Q_l) from all training bundles and one pair per fold.
-    The cache file name contains a hash of the training bundles and labels, so a changed split never reuses it.
-    """
-    import hashlib
-
-    # Hash of the training bundles and every label level.
-    h=hashlib.sha256(json.dumps([sorted(set(b)) for b in ds.train]).encode())
-    for l in ds.levels:
-        h.update(np.asarray(l,dtype='<i8').tobytes())
-    path=Path(cache)/ds.name/f'labels_r{config["label_rank"]}_{h.hexdigest()[:16]}.npz'
-
-    # Cached: rebuild the same nested structure from the saved arrays.
-    if path.exists():
-        saved=np.load(path)
-        return [((saved[f'{i}_left'],saved[f'{i}_right']),
-                 list(zip(saved[f'{i}_fold_left'],saved[f'{i}_fold_right'])))
-                for i in range(len(ds.levels))]
-
-    # Not cached: compute, then save one array per level and factor.
-    out=cross_fitted_labels(ds.train,ds.n_items,ds.levels,config['label_rank'])
-    arrays={}
-    for i,((left,right),folds) in enumerate(out):
-        arrays.update({f'{i}_left':left,
-                       f'{i}_right':right,
-                       f'{i}_fold_left':np.stack([f[0] for f in folds]),
-                       f'{i}_fold_right':np.stack([f[1] for f in folds])})
-    path.parent.mkdir(parents=True,exist_ok=True)
-    np.savez(path,**arrays)
-    return out
-
-
 def build(ds,cache,config=CONFIG):
-    """A freshly initialized DIALS for a dataset (fixed structures built, parameters at their initial values)."""
-    return DIALS(ds.features,ds.levels,ds.train,spectral(ds,cache,config),rank=config['rank'],hidden=config['hidden'])
+    """A freshly initialized TRIAD for a dataset (fixed structures built, parameters at their initial values).
+
+    cache is not used by the model; it is kept so that callers can pass one."""
+    return TRIAD(ds.features,ds.levels,ds.train,rank=config['rank'],hidden=config['hidden'])
 
 
 def load(ds,run,cache):

@@ -1,4 +1,4 @@
-# DIALS, end to end: from raw files to test scores
+# TRIAD, end to end: from raw files to test scores
 
 This document follows one dataset through the code, from the files on disk to the numbers in `runs/summary.json`. At
 every step it names the function that runs and the variable that holds the result, with its shape.
@@ -15,34 +15,34 @@ label values at a level, k = 16 label rank. ❄️ marks fixed values built from
 ## 0. The whole pipeline on one page
 
 ```
-python -m dials train --dataset electronic --seed 0
+python -m triad train --dataset electronic --seed 0
 │
-├─ 1. import dials                      __init__.py   pin BLAS to 1 thread (reproducible SVDs)
+├─ 1. import triad                      __init__.py   pin BLAS to 1 thread (reproducible feature SVDs)
 ├─ 2. data.load('electronic')           data.py       → ds: Dataset (bundles, splits, features, labels)
 ├─ 3. train.fit(ds, seed, run_dir)      train.py
 │   ├─ 3a. train.build(ds)
-│   │     ├─ train.spectral(ds)         ❄️ label factors P, Q (+5 fold copies), cached in cache/
-│   │     └─ DIALS(...)                 ❄️ N, f, deg, NX as buffers; 🔥 parameters initialized
+│   │     └─ TRIAD(...)                 ❄️ N, f, deg, NX, labels as buffers; 🔥 parameters initialized
 │   ├─ 3b. optimizer                    two AdamW groups
 │   └─ 3c. epochs
 │         ├─ batches of 32 bundles: hide → model(seeds, bundles) → loss → step
 │         └─ evaluate(model, val)       keep best epoch, stop after 6 bad epochs
 │   → runs/electronic/seed0/{model.pt, selected.json, history.json}
 │
-python -m dials test --datasets electronic
+python -m triad test --datasets electronic
 └─ 4. for seeds 0,1,2: train.load → evaluate(model, test) → test.json; means → runs/summary.json
 ```
 
 ---
 
-## 1. Before anything runs: `dials/__init__.py`
+## 1. Before anything runs: `triad/__init__.py`
 
-Importing `dials` sets `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` and `VECLIB_MAXIMUM_THREADS` to 1,
+Importing `triad` sets `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` and `VECLIB_MAXIMUM_THREADS` to 1,
 unless they are already set.
-- **Why:** randomized SVDs give bit-identical results only at a fixed thread count. Apple's Accelerate library can't
+- **Why:** the truncated SVDs that project the item features give bit-identical results only at a fixed thread
+  count. Apple's Accelerate library can't
   be limited after numpy has loaded it.
-- **Consequence:** `dials` must be imported before numpy. If numpy came first, a warning says the SVD caches may not
-  be bit-reproducible. Scripts in this repo start with `import dials` for this reason.
+- **Consequence:** `triad` must be imported before numpy. If numpy came first, a warning says the SVD caches may not
+  be bit-reproducible. Scripts in this repo start with `import triad` for this reason.
 
 ---
 
@@ -77,9 +77,11 @@ Files: `<DATA_ROOT>/BundleRec/dataset/<name>/`. These are the crowd-labelled bun
    - Result: `bundles`.
 4. **Features.**
    - `item_titles.csv` gives one title string per item (`titles`).
-   - TF-IDF: at most 8,000 unigrams and bigrams, English stop words removed, sublinear term frequency, rows
-     L2-normalized.
-   - A truncated SVD to 128 dimensions gives `features`. It is not re-normalized here; the model does that.
+   - `blip_titles(titles, cache)`: BLIP's text encoder (checkpoint `Salesforce/blip-itm-base-coco`) embeds each
+     title, and the 768-d [CLS] vector is kept. Items without a title get a zero row. The vectors are cached in
+     `cache/blip/<hash of the titles>.npy`, so the encoder runs once per catalogue.
+   - Rows are L2-normalized, and a truncated SVD to 128 dimensions gives `features`. It is not re-normalized here;
+     the model does that.
 5. **Labels.**
    - `item_categories.csv` gives each item's category string, numbered by first appearance into `labels`.
    - An item with no category row keeps the initial value 0, so it shares the first category seen.
@@ -143,8 +145,8 @@ File: `<DATA_ROOT>/dunnhumby/transaction_data.csv` and `product.csv`.
 
 ## 3. Fixed structures ❄️: `train.build(ds)`
 
-`build` calls `train.spectral(ds, cache)` for the label factors, then `DIALS(ds.features, ds.levels, ds.train,
-spectral, rank=64, hidden=32)`. Everything below is computed from `ds.train` only.
+`build` calls `TRIAD(ds.features, ds.levels, ds.train, rank=64, hidden=32)`. Everything below is computed from
+`ds.train` and the item labels only.
 
 ### 3a. Co-occurrence: `model.pair_counts(train, n)`
 
@@ -163,7 +165,7 @@ non-zero.
 
 Both directions are stored, (s, c) and (c, s), so N is symmetric.
 
-### 3b. Buffers registered in `DIALS.__init__`
+### 3b. Buffers registered in `TRIAD.__init__`
 
 All buffers are created with `persistent=False`. They are rebuilt from `ds.train` whenever a model is built, and are
 **not saved in checkpoints**. `model.pt` holds only the 🔥 parameters.
@@ -180,42 +182,17 @@ All buffers are created with `persistent=False`. They are rebuilt from `ds.train
 | `log_degree` | 3499 | 31217 | log max(deg_c, 1) |
 | `label0` | 3499 | 31217 | g(c) at level 0 |
 | `label_size0` | 479 | 67 | log(1 + number of items with each label value) |
-| `label_left0`, `label_right0` | 479 × 16 | 67 × 16 | P, Q from all training bundles |
-| `label_fold_left0`, `label_fold_right0` | 5 × 479 × 16 | 5 × 67 × 16 | P^(k), Q^(k) without fold k |
 
-Spotify has a second level, so it also gets `label1`, `label_size1`, `label_left1` and so on.
+Spotify has a second level, so it also gets `label1` and `label_size1`.
 
 On Electronic, 680 items have f = 0 and deg = 0 (6,786 on POG_DENSE). For them, `history()` returns a zero row, and
 the graph term gives only the prior.
-
-### 3c. Label factors: `train.spectral` → `model.cross_fitted_labels`
-
-1. **Cache key.** A SHA-256 of the training bundles (each sorted) and every label array. The file is
-   `cache/<name>/labels_r16_<first 16 hex digits>.npz`. A changed split or label set gives a new file name, so a
-   stale cache is never reused.
-2. **If cached,** the arrays `0_left`, `0_right`, `0_fold_left`, `0_fold_right` (and `1_*` for a second level) are
-   read back into the nested structure.
-3. **If not,** `cross_fitted_labels(train, n, levels, 16)` runs:
-   - `fold_of(b)`: an MD5 hash of the bundle's sorted distinct items, mod 5. Identical bundles share a fold. On
-     Electronic the folds hold 235, 239, 249, 241 and 247 bundles.
-   - **Full set:** build N from all training bundles, then `label_factors` for every level.
-   - **Fold sets:** for k = 0..4, build N from the bundles outside fold k, then `label_factors`.
-   - The result is regrouped per level: `((P, Q), [(P^(0), Q^(0)), …, (P^(4), Q^(4))])`.
-4. **`label_factors(N, labels, 16)`:**
-   - Γ: the n × K one-hot matrix (sparse).
-   - Label co-occurrence: N̄ = Γᵀ N Γ, which is K × K.
-   - Label degrees: D = diag(N̄ 1), floored at 1.
-   - Normalize: N̂ = D^-½ N̄ D^-½.
-   - Randomized SVD of rank min(16, K−1), with 4 power iterations and `random_state=0`: N̂ ≈ U Σ Vᵀ.
-   - Return P = U Σ^½ and Q = V Σ^½, as float32.
-
-   Six SVDs per level in all: one full set and five fold sets.
 
 ---
 
 ## 4. Trained parameters 🔥 and their initial values
 
-41,624 parameters on every one-level dataset (41,978 on Spotify, which has two levels).
+41,368 parameters on every one-level dataset (41,466 on Spotify, which has two levels).
 
 | Parameter | Shape | Count | Initial value | Group |
 |---|---|---|---|---|
@@ -224,20 +201,19 @@ the graph term gives only the prior.
 | `key_content` B_z | 64 × 128 | 8,192 | √10 · [I₆₄ 0] | shared |
 | `query_history` A_h | 64 × 128 | 8,192 | 0 | shared |
 | `key_history` B_h | 64 × 128 | 8,192 | 0 | shared |
-| `mixing[l]` M_l | 16 × 16 | 256 per level | 0 (low-rank label part off) | fast |
-| `diagonal[l]` δ_l (Linear 3→16, GELU, Linear 16→1) | | 81 per level | default init | fast |
+| `same_label[l]` δ_l (Linear 3→16, GELU, Linear 16→1) | | 81 per level | default init | fast |
 | `exponents` (α, β) | 2 | 2 | 0, 0 (raw counts) | fast |
 | `theta` θ | scalar | 1 | 1 | fast |
 | `prior` ρ (Linear 1→16, GELU, Linear 16→1) | | 49 | default init | fast |
 | `gate` (Linear 3→16, GELU, Linear 16→2+L) | | 115 (one level) | last layer weight 0, bias log(e−1) (every weight starts at 1) | fast |
 
-- **Fast group:** the small relation parameters, 504 in total, listed by `fast_parameters()`. They train at learning
+- **Fast group:** the small relation parameters, 248 in total on one label level, listed by `fast_parameters()`. They train at learning
   rate 10⁻².
 - **Shared group:** everything else. It trains at 10⁻³.
 
 At initialization the model is a plain sum with weight 1 per term:
 - **Content:** 10 × the dot product of the first 64 coordinates of X (seed mean against candidate).
-- **Labels:** only δ_l, since M_l = 0.
+- **Labels:** δ_l at its default initialization.
 - **Graph:** log(1 + raw co-occurrence count) + ρ(f).
 
 ---
@@ -271,21 +247,16 @@ are converted the same way.
    histories too. For each member, the code stores Δkey = (h_loo − h) B_hᵀ and adds φ(S)·Δkey at those (query,
    member) entries with `index_put(..., accumulate=True)`. This avoids rebuilding the full key matrix per query.
 
-**Step 2: labels, `label_scores(i, …)` for each level i (ARCH §7).**
+**Step 2: labels, `label_scores(i, seeds)` for each level i (ARCH §7).**
 1. **Seed label counts:** `tally` (q × K), with `tally[j, g]` = number of seeds of query j with label g. It is built
    with `bincount`.
-2. **Label mix:** `mean = tally / row sums` (q × K), which is t(S)/|S|.
-3. **Low-rank part:** `mean @ P @ M` gives q × 16, then `@ Q[label].T`, where `Q[label]` is n × 16, one row per item,
-   for q × n in total.
-   - *Evaluation:* P, Q from all bundles.
-   - *Training:* for each fold k present in the batch, the queries whose bundle is in fold k use P^(k), Q^(k).
-4. **Diagonal part.**
+2. **Same-label score.**
    - `m = tally[:, label]` (q × n) is how many seeds share each candidate's label.
    - Only the non-zero entries are evaluated. For each, the input is (log(1+m), log|S|, log(1 + number of items with
      that label)), run through δ_l.
-   - The outputs are added at those entries (sparse `index_put`).
-5. **No leave-one-out here.** The label counts come from the seeds, and the label sizes from the catalogue, not from
-   bundles. The only bundle-derived piece, P and Q, is handled by the folds.
+   - The outputs are written at those entries (sparse `index_put`); every other entry is 0.
+3. **No leave-one-out here.** The label counts come from the seeds, and the label sizes from the catalogue, not from
+   bundles, so the term takes no `bundles` argument.
 
 **Step 3: graph, `graph_scores` (ARCH §8).**
 1. **Gather the seeds' partners:** `expand(query_ids, seed_ids)` returns, for every stored pair whose source is a
@@ -384,7 +355,7 @@ the single-threaded BLAS from step 1 make a run bit-reproducible.
    - Recall@20 = hits / |held out|. NDCG@20 = Σ hit_k / log₂(k+1) over the ideal DCG with min(|held out|, 20) hits.
 4. **Returns:** the mean recall20 and ndcg20, a record per query (recall, NDCG, top-20 list) and the seconds taken.
 
-**`python -m dials test`:**
+**`python -m triad test`:**
 1. Uses 4 threads and deterministic algorithms.
 2. Skips any dataset where not all three seeds have finished.
 3. **For seeds 0, 1 and 2:** if `test.json` is missing, load the model and evaluate the test queries once, writing
@@ -403,13 +374,13 @@ the single-threaded BLAS from step 1 make a run bit-reproducible.
 | Path | Written by | Content |
 |---|---|---|
 | `cache/<name>/features_released.npy` | `data.projected_features` | supplied datasets only: the 128-dimensional features |
-| `cache/<name>/labels_r16_<hash>.npz` | `train.spectral` | P, Q and the five fold copies per level |
+| `cache/blip/<hash>.npy` | `data.blip_titles` | e-commerce only: the 768-d BLIP title embeddings |
 | `runs/<name>/seed<s>/last.pt` | `train.fit`, each epoch | resume state; deleted at the end |
 | `runs/<name>/seed<s>/model.pt` | `train.fit` | parameters of the best epoch |
 | `runs/<name>/seed<s>/history.json` | `train.fit` | loss and validation metrics per epoch |
 | `runs/<name>/seed<s>/selected.json` | `train.fit` | chosen epoch, validation metrics, config, size, time |
-| `runs/<name>/seed<s>/test.json` | `python -m dials test` | per-query test results |
-| `runs/summary.json` | `python -m dials test` | three-seed means, all and clean queries |
+| `runs/<name>/seed<s>/test.json` | `python -m triad test` | per-query test results |
+| `runs/summary.json` | `python -m triad test` | three-seed means, all and clean queries |
 
 ---
 
@@ -420,10 +391,10 @@ the single-threaded BLAS from step 1 make a run bit-reproducible.
 | Loader | `load_resplit` | `load_baskets` | `load_supplied` | `load_supplied` |
 | Bundles | crowd-labelled, deduplicated | grocery baskets, sampled | released outfits | released playlists |
 | Split | ours: 70/10/20, half hidden | ours: 70/10/20, half hidden | released | released |
-| Features | TF-IDF of titles → SVD 128 | TF-IDF of department to brand → SVD 128 | BLIP image + text → SVD 128 | CLAP audio + text → SVD 128 |
+| Features | BLIP text of titles → SVD 128 | TF-IDF of department to brand → SVD 128 | BLIP image + text → SVD 128 | CLAP audio + text → SVD 128 |
 | Label levels | 1: category | 1: sub-commodity | 1: category | 2: artist, album |
 | Clean test | all queries | all queries | full bundle not in train/val | full bundle not in train/val |
-| Parameters | 41,624 | 41,624 | 41,624 | 41,978 |
+| Parameters | 41,368 | 41,368 | 41,368 | 41,466 |
 
 The model, the configuration (`train.CONFIG`) and the training loop are identical on every dataset.
 
@@ -438,8 +409,7 @@ The model, the configuration (`train.CONFIG`) and the training loop are identica
 - **Training bundles with one distinct item** are skipped by `fit`; they can't give a seed and a target.
 - **Seeds are scored too.** The forward pass scores the whole catalogue, seeds included. Seeds are excluded later:
   from the loss negatives by `allowed`, and from rankings by `top_items`.
-- **The label term has no leave-one-out.** Only P and Q depend on bundles, and those are cross-fitted. The diagonal's
-  inputs come from the seeds and the catalogue.
+- **The label term has no leave-one-out.** Its inputs come from the seeds and the catalogue, not from bundles.
 - **The members-as-candidates correction** in `content_scores` adjusts only the bundle members' keys, through
   `index_put`. It never rebuilds the key matrix.
 - **The early-stopping rule** counts epochs without a *strict* improvement and is checked at the start of the next
@@ -447,5 +417,5 @@ The model, the configuration (`train.CONFIG`) and the training loop are identica
 - **Checkpoints and caches.**
   - Buffers are non-persistent, so `model.pt` is parameters only, and the training split always rebuilds the data
     structures.
-  - The label cache is keyed by a hash of the split, so a different split can't silently reuse old factors.
-- **Determinism** depends on importing `dials` before numpy (step 1).
+  - The BLIP cache is keyed by a hash of the titles, so a changed catalogue can't silently reuse old embeddings.
+- **Determinism** depends on importing `triad` before numpy (step 1).

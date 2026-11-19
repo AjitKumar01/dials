@@ -1,4 +1,4 @@
-# How DIALS works
+# How TRIAD works
 
 This document explains the model in this repository from first principles. It assumes linear algebra and basic
 neural-network training, but no knowledge of the repository or of earlier versions of the model. Each section says
@@ -10,7 +10,7 @@ what a component computes, why it is there, and where it lives in the code.
 4. [Notation and the matrices everything is built from](#4-notation-and-the-matrices-everything-is-built-from)
 5. [The score in one line](#5-the-score-in-one-line)
 6. [Term 1: content](#6-term-1-content)
-7. [Term 2: labels (diagonal plus low rank)](#7-term-2-labels-diagonal-plus-low-rank)
+7. [Term 2: labels](#7-term-2-labels)
 8. [Term 3: co-occurrence graph](#8-term-3-co-occurrence-graph)
 9. [The gate](#9-the-gate)
 10. [Training](#10-training)
@@ -34,7 +34,7 @@ The model sees four kinds of information:
 | Source | What it is | Example |
 |---|---|---|
 | Training bundles | lists of item IDs | 20,780 outfits on POG_DENSE |
-| Item features | one vector per item | the released features only: BLIP image and text embeddings (POG), CLAP audio and text embeddings (Spotify), both from the CLHE release; where nothing is released, TF-IDF of the item text (e-commerce, Dunnhumby) |
+| Item features | one vector per item | the released features only: BLIP image and text embeddings (POG), CLAP audio and text embeddings (Spotify), both from the CLHE release; where nothing is released, BLIP text embeddings of the item titles that we compute (e-commerce) or TF-IDF of the product text (Dunnhumby) |
 | Item labels | one or more categorical attributes per item | category (POG, e-commerce); artist and album (Spotify) |
 | Training frequency | how many training bundles contain the item | derived from the bundles |
 
@@ -44,12 +44,12 @@ the training bundles.
 ## 2. The data: how each dataset is organized
 
 Every dataset has the same three layers: a **bundle** contains **items**, and each item carries **labels**. The
-datasets differ in what those layers are, how many label levels exist, and which of them DIALS uses.
+datasets differ in what those layers are, how many label levels exist, and which of them TRIAD uses.
 
 <p align="center"><img src="figures/datasets.png" alt="Data hierarchy of the eight datasets" width="760"></p>
 
 Read each panel top-down: a bundle contains items, and each item has a label value at every label level. Teal boxes
-are the label levels DIALS uses (section 7). Purple dashed boxes enter only through the item's text features. Grey
+are the label levels TRIAD uses (section 7). Purple dashed boxes enter only through the item's text features. Grey
 dotted boxes exist in the raw data but are not used.
 
 | Dataset | Bundle | Item | Label levels used | Split |
@@ -62,11 +62,12 @@ dotted boxes exist in the raw data but are not used.
 Four features of the data shape how the model behaves:
 
 - **The e-commerce categories are paths in a taxonomy** (Electronics › Computers & Accessories › … › Cases &
-  Sleeves). DIALS treats the whole path as one label value, so the coarser levels are not used. On Clothing, 62% of
+  Sleeves). TRIAD treats the whole path as one label value, so the coarser levels are not used. On Clothing, 62% of
   products have several paths, and the label is the whole set: 2,033 label values for 4,487 products. So most labels
   hold a single product, and the "same label" part of the label term rarely fires there.
 - **POG's categories are hashed IDs:** 72 values, with no names and no hierarchy. Most POG targets come from a category
-  that none of the seeds has (an outfit needs shoes as well as a dress), so the label-to-label part matters most here.
+  that none of the seeds has (an outfit needs shoes as well as a dress), so on POG a shared category is evidence
+  against a candidate (section 14).
 - **Spotify has two nested levels.** 97.7% of albums have a single artist, so the album is almost a refinement of the
   artist. Both are used, each as its own label level with its own parameters.
 - **Dunnhumby has a three-level hierarchy** (department › commodity › sub-commodity). Only the finest level is a label;
@@ -74,12 +75,12 @@ Four features of the data shape how the model behaves:
 
 The split also differs. POG and Spotify use the split files released with the data, so their numbers are directly
 comparable with published results. The e-commerce sets and Dunnhumby have no released split, so the loaders make a
-seeded one (`dials/data.py`). Query sizes follow the bundles: a typical POG query gives 2 seeds and hides 2, and a
+seeded one (`triad/data.py`). Query sizes follow the bundles: a typical POG query gives 2 seeds and hides 2, and a
 Spotify query gives 23 tracks and hides 23.
 
 ## 3. The architecture at a glance
 
-<p align="center"><img src="figures/architecture.png" alt="DIALS architecture" width="760"></p>
+<p align="center"><img src="figures/architecture.png" alt="TRIAD architecture" width="760"></p>
 
 Read the figure from the bottom up:
 
@@ -87,15 +88,13 @@ Read the figure from the bottom up:
 2. **❄️ Frozen layer.** It is computed once from the training split, and nothing in it is trained.
 3. **Three score towers.**
    - Content $C$: do the candidate's features and partners look like the seeds'?
-   - Labels $L_l$, one per label level: a learned "same label" score plus a learned label-to-label relation built on
-     fixed spectral factors of the label co-occurrence.
+   - Labels $L_l$, one per label level: a learned score for a candidate that shares a seed's label.
    - Graph $G$: how often the candidate was bought with the seeds, discounted by popularity, plus a popularity prior.
 4. **Gate.** It weights the towers per query.
 5. **Weighted sum.** It gives a score for every item in the catalogue.
 
-🔥 marks the 41,624 trained parameters. During training, a bundle's own contribution is removed from the
-co-occurrence statistics before it is scored, and the spectral label factors it sees are computed without it
-(section 11). Sections 4 to 9 define every symbol in the figure. The figure's source is `figures/architecture.tex`.
+🔥 marks the 41,368 trained parameters. During training, a bundle's own contribution is removed from the
+co-occurrence statistics before it is scored (section 11). Sections 4 to 9 define every symbol in the figure. The figure's source is `figures/architecture.tex`.
 
 ## 4. Notation and the matrices everything is built from
 
@@ -118,7 +117,7 @@ $N$ is the only object built from bundles. Everything collaborative in the model
 $f$. `model.pair_counts` builds $N$ as sorted (source, target, count) triples plus a CSR-style pointer, so the
 partners of any item are one contiguous slice.
 
-Two derived quantities are used repeatedly.
+One derived quantity is used repeatedly.
 
 **Partner history.** For each item, the co-occurrence-weighted mean feature of its partners:
 
@@ -129,17 +128,8 @@ H = D^{-1} N X, \qquad D = \operatorname{diag}(\deg) \qquad (n \times d;\ \text{
 An item that is rarely seen has an uninformative own feature, but if it was bought with known items, $H$ says what
 those were. In the code: `history_sum` $= NX$, `history()`.
 
-**Label co-occurrence** at level $l$, how often label value $g$ appears in a bundle with label value $g'$. It is $N$
-summed up to label values:
-
-```math
-\bar N_l = \Gamma_l^\top N \,\Gamma_l \qquad (K_l \times K_l)
-```
-
-Section 7 builds two fixed matrices from it, the spectral label factors $P_l$ and $Q_l$ ($K_l \times 16$ each).
-
 **Trained parameters** are introduced with the term they belong to: the maps $A_z, A_h, B_z, B_h$ and the encoder MLP
-(section 6), $\delta_l$ and $M_l$ (section 7), $\theta$, $\alpha$, $\beta$ and $\rho$ (section 8), and the gate MLP
+(section 6), $\delta_l$ (section 7), $\theta$, $\alpha$, $\beta$ and $\rho$ (section 8), and the gate MLP
 (section 9). Section 13 lists them all with their sizes.
 
 ## 5. The score in one line
@@ -158,7 +148,7 @@ It's a weighted sum of three kinds of evidence:
 
 The weights $w(S) \ge 0$ come from a small **gate** that looks only at simple statistics of $S$ (section 9). All
 scores for all $n$ items are computed at once as a row vector per query. A batch of $q$ queries gives a $q \times n$
-matrix (`DIALS.forward`).
+matrix (`TRIAD.forward`).
 
 ### The running example
 
@@ -170,22 +160,23 @@ internal hard drive ($f_c = 11$). Electronic has one label level, the category p
 <p align="center"><img src="figures/forward.png" alt="One forward pass with real numbers" width="760"></p>
 
 The figure's panels use symbols that sections 6 to 9 define; panel 5 can be read now. Those sections compute each
-piece for the target: content $C(S,c) = 5.18$, labels $L_1(S,c) = -0.005$, graph
-$G(S,c) = 1.71$, and gate weights $w_C = 1.23$, $w_1 = 1.62$, $w_G = 4.44$. The score is their weighted sum:
+piece for the target: content $C(S,c) = 6.66$, labels $L_1(S,c) = 0$, graph $G(S,c) = 1.70$, and gate weights
+$w_C = 1.54$, $w_1 = 0.19$, $w_G = 4.60$. The score is their weighted sum:
 
 ```math
-s(c \mid S) = w_C\, C + w_1 L_1 + w_G\, G = 1.23 \times 5.18 + 1.62 \times (-0.005) + 4.44 \times 1.71 = 13.93
+s(c \mid S) = w_C\, C + w_1 L_1 + w_G\, G = 1.54 \times 6.66 + 0.19 \times 0 + 4.60 \times 1.70 = 18.05
 ```
 
 That is the highest of the 3,497 items that are not seeds, so the target is ranked first. Panel 5 of the figure splits
 the scores of seven candidates into their weighted parts:
 
-- **Ranks 1 to 5** are all computer parts bought with these drives: a hard drive, two power supplies, memory and a
-  processor. Co-occurrence (dark green) is the largest part for all of them, and content (purple) separates them.
-- **Two items never seen in training** have no co-occurrence, so content and labels must carry them. A Sony DVD
-  drive has the highest content score of all seven, yet ranks 9th. An HGST hard drive in the target's own category
-  ranks 22nd. This is the model's main weakness: on POG, 59% of held-out test items never occur in a training bundle,
-  and DIALS puts 3.3% of them in its top 20.
+- **Ranks 1 to 5** are all computer parts bought with these drives: a hard drive, a power supply, memory, a processor
+  and a case. Co-occurrence (dark green) and content (purple) are the two large parts for all of them.
+- **The two best-ranked items never seen in training** have no co-occurrence, so content and labels must carry them.
+  Both are DVD drives, like the seeds: an LG rewriter has the highest content score of all seven and ranks 8th, a Sony
+  drive ranks 9th. Without co-occurrence the model finds more of what the seeds are, not what completes them. This is
+  the model's main weakness: on POG, 59% of held-out test items never occur in a training bundle, and Recall@20 on
+  them is .020.
 
 The parts were extracted from the frozen model and add up to its scores to within $10^{-4}$.
 
@@ -218,17 +209,17 @@ For all candidates at once this is one matrix product, $\varphi(S)^\top \big(Z B
 The $n \times 64$ key matrix is computed once per evaluation pass and reused, together with $Z$, $H$ and the
 prior (`cache()`).
 
-**In the example.** The two seeds' query vectors have lengths 2.76 and 2.78. Their mean $\varphi(S)$ has length 2.68,
-almost as long as either, so the two DVD drives point in nearly the same direction. The target's key has length 2.42,
+**In the example.** The two seeds' query vectors have lengths 2.95 and 2.96. Their mean $\varphi(S)$ has length 2.82,
+almost as long as either, so the two DVD drives point in nearly the same direction. The target's key has length 2.77,
 and the content score is one inner product:
 
 ```math
-C(S,c) = \varphi(S)^\top \mathrm{key}(c) = 5.18
+C(S,c) = \varphi(S)^\top \mathrm{key}(c) = 6.66
 ```
 
-The Sony DVD drive scores higher, $C = 5.66$. It is a third DVD drive, so it looks like the seeds; the hard drive is
-what completes them. Ranked by content alone, the Sony drive would be 2nd and the target only 27th; the other terms
-are what move the target to first.
+The LG and Sony DVD drives score higher, $C = 7.20$ and $7.00$. They are a third and a fourth DVD drive, so they look
+like the seeds; the hard drive is what completes them. Ranked by content alone, the target would be only 37th; the
+graph term is what moves it to first.
 
 **Why this form.**
 - **Two maps instead of one similarity (asymmetric).** "Items that complete $s$" is not "items similar to $s$": a
@@ -238,7 +229,7 @@ are what move the target to first.
 - **Initialization.** $A_z = B_z = \sqrt{10}\,[I_{64}\ 0]$ and $A_h = B_h = 0$, so the model starts as 10 × the dot
   product of the first 64 feature coordinates (seed mean against candidate) and learns away from it.
 
-## 7. Term 2: labels (diagonal plus low rank)
+## 7. Term 2: labels
 
 There is one label term per label **level** $l$, each with its own parameters: one level on Electronic and POG
 (the category), two on Spotify (artist and album). Within a level, $g$ ranges over the label **values**, and $g_l(c)$
@@ -247,71 +238,29 @@ two candidates show both cases:
 
 | Symbol | Meaning | Target: Seagate hard drive | Sony DVD drive |
 |---|---|---|---|
-| $t_l(S) \in \mathbb{R}^{K_l}$ | how many seeds carry each label value: $t_l(S)_g = \#\{s \in S : g_l(s) = g\}$ | 1 at "… › DVD Drives", 1 at "… › Internal DVD Drives", 0 at the other 477 categories (the same for every candidate) | the same |
+| $t_l(S) = \Gamma_l^\top \mathbf{1}_S \in \mathbb{R}^{K_l}$ | how many seeds carry each label value: $t_l(S)_g = \#\{s \in S : g_l(s) = g\}$ | 1 at "… › DVD Drives", 1 at "… › Internal DVD Drives", 0 at the other 477 categories (the same for every candidate) | the same |
 | $m = t_l(S)_{g_l(c)}$ | how many seeds share the candidate's label value | 0: "… › Internal Hard Drives" is no seed's category | 1: the Samsung seed's category |
 | $n_{g_l(c)}$ | how many catalogue items carry that label value | 32 | 8 |
 
-The label score has two parts. The **diagonal part** asks whether $c$ shares a seed's label value. The **low-rank
-part** asks which label values go with which, so it can also score a candidate whose label no seed has.
-
-**The diagonal part 🔥.** A tiny MLP $\delta_l$ ($3 \to 16 \to 1$) scores a shared label value. It fires only when
-$m > 0$:
+**The score 🔥.** A tiny MLP $\delta_l$ ($3 \to 16 \to 1$) scores a candidate that shares a seed's label value. It
+fires only when $m > 0$:
 
 ```math
-\mathrm{diag}_l(S,c) = \delta_l\big(\log(1+m),\ \log\lvert S\rvert,\ \log(1+n_{g_l(c)})\big)\,\mathbf{1}[m>0]
+L_l(S,c) = \delta_l\big(\log(1+m),\ \log\lvert S\rvert,\ \log(1+n_{g_l(c)})\big)\,\mathbf{1}[m>0]
 ```
 
 Its output can be positive or negative, so the model decides from data whether a shared label is good (same artist
 on a playlist) or bad (a second pair of shoes in an outfit). Its inputs let that depend on how many seeds share the
-label, on the query size, and on how common the label is.
+label, on the query size, and on how common the label is. Labels are fixed attributes of the items, not counts from
+bundles, so this term needs no correction against leakage (section 11).
 
-**The low-rank part.** A full $K_l \times K_l$ table of label-to-label affinities would have, for example,
-$43{,}039^2$ entries for the Spotify_sparse artists, and would memorize rare labels. Instead the model uses a fixed
-spectral basis ❄️. Normalize the label co-occurrence $\bar N_l$ (section 4) by the label degrees
-$D_l = \operatorname{diag}(\bar N_l \mathbf{1})$ and take its rank-16 SVD:
+**In the example.** For the Sony drive, $m = 1$, so the term fires: $\delta_1(\log 2,\ \log 2,\ \log 9) = +0.63$, a
+bonus for sharing a seed's category. For the target, $m = 0$, so $L_1(S,c) = 0$.
 
-```math
-\hat N_l = D_l^{-1/2}\, \bar N_l\, D_l^{-1/2} \;\approx\; U \Sigma V^\top, \qquad P_l = U \Sigma^{1/2}, \quad Q_l = V \Sigma^{1/2} \qquad (K_l \times 16)
-```
-
-Row $g$ of $P_l$, written $P_l[g]$, is a 16-number description of label value $g$, and so is $Q_l[g]$. Their
-products reproduce the observed affinity, $P_l Q_l^\top \approx \hat N_l$. $P_l$ and $Q_l$ are not trained; they
-are part of the data, like $N$ (`model.label_factors`).
-
-The model learns only a $16 \times 16$ matrix $M_l$ 🔥, initialized to zero, that reweights and mixes the 16
-directions. The learned affinity between two label values, and the low-rank part of the score, are
-
-```math
-\mathrm{affinity}_l(g, g') = P_l[g]\, M_l\, Q_l[g']^\top, \qquad
-\mathrm{low}_l(S,c) = \frac{1}{\lvert S\rvert}\sum_{g} t_l(S)_g\ \mathrm{affinity}_l\big(g,\, g_l(c)\big) = \frac{1}{\lvert S\rvert}\, t_l(S)^\top P_l M_l\, Q_l[g_l(c)]^\top
-```
-
-that is, the affinity of $c$'s label value to each seed's label value, averaged over the seeds. This costs 256
-parameters per level however many labels exist, and labels that never co-occur in training can still get an
-affinity through the shared directions.
-
-**The label score** is the sum of the two parts:
-
-```math
-L_l(S,c) \;=\; \underbrace{\delta_l\big(\log(1+m),\ \log\lvert S\rvert,\ \log(1+n_{g_l(c)})\big)\,\mathbf{1}[m>0]}_{\text{diagonal: does } c \text{ share a seed's label?}}
-\;+\; \underbrace{\frac{1}{\lvert S\rvert}\, t_l(S)^\top P_l M_l\, Q_l[g_l(c)]^\top}_{\text{low rank: which labels go with which?}}
-```
-
-**In the example.** For the Sony drive, $m = 1$, so the diagonal fires: $\delta_1(\log 2,\ \log 2,\ \log 9) = +0.32$,
-a bonus for sharing a seed's category. For the target, $m = 0$, so the diagonal is off and only the low-rank part is
-left. It reads the seeds' category mix, half each DVD category, and scores how well "Internal Hard Drives" goes with
-it:
-
-```math
-L_1(S,c) = \frac{1}{\lvert S\rvert}\, t_1(S)^\top P_1 M_1\, Q_1[g_1(c)]^\top = -0.005
-```
-
-That is close to zero, and typical outside POG. Switching $M_l$ off in the trained models changes validation NDCG@20
-by at most .0013 on six of the eight datasets, against .0067 on POG and .0053 on POG_DENSE (code review, 2026-11-10).
-So the affinity between labels that never co-occur helps in practice on POG and POG_DENSE only.
-
-**Diagonal plus low rank.** $\delta_l$ handles "same label" and $M_l$ handles "related labels". The name DIALS comes
-from this split, and from the spectral factors being cross-fitted (section 11).
+**What the term does not model: which labels go with which.** "Trousers go with shirts" is a relation between two
+different labels. TRIAD has no separate part for it. The co-occurrence graph (section 8) already holds it at the level
+of items: a label-by-label table $\Gamma_l^\top N \Gamma_l$ is $N$ summed over items, so it carries less detail than
+$N$ itself. Section 15 gives the measurements behind this choice.
 
 ## 8. Term 3: co-occurrence graph
 
@@ -335,20 +284,19 @@ Computing it touches only the observed partners of the seeds: the cost is $\sum_
 
 **In the example.** The target was bought with the first seed once and with the second twice: $N_{s_1c} = 1$ and
 $N_{s_2c} = 2$. The degrees are $\deg_{s_1} = 7$, $\deg_{s_2} = 13$ and $\deg_c = 52$. The trained model has
-$\alpha = 0.036$, $\beta = 0.175$ and $\theta = 1.89$:
+$\alpha = 0.056$, $\beta = 0.133$ and $\theta = 1.83$:
 
 ```math
-\sum_{s\in S} N_{sc}\,\deg_s^{-\alpha}\deg_c^{-\beta} = 1\cdot 7^{-0.036}\cdot 52^{-0.175} + 2\cdot 13^{-0.036}\cdot 52^{-0.175} = 0.467 + 0.914 = 1.38
+\sum_{s\in S} N_{sc}\,\deg_s^{-\alpha}\deg_c^{-\beta} = 1\cdot 7^{-0.056}\cdot 52^{-0.133} + 2\cdot 13^{-0.056}\cdot 52^{-0.133} = 0.530 + 1.025 = 1.56
 ```
 
 ```math
-G(S,c) = \theta\log(1 + 1.38) + \rho\big(\log(1 + 11)\big) = 1.89 \times 0.87 + 0.06 = 1.64 + 0.06 = 1.71
+G(S,c) = \theta\log(1 + 1.56) + \rho\big(\log(1 + 11)\big) = 1.83 \times 0.94 - 0.02 = 1.72 - 0.02 = 1.70
 ```
 
-The prior $\rho$ is not monotone in this model. Over the candidates in the figure it gives $+0.06$ at $f = 11$,
-$-0.02$ at $f = 8$, $-0.37$ at $f = 2$, $-0.38$ at $f = 1$ and $+0.07$ at $f = 0$: items seen only once or twice are
-pushed down. The Sony DVD drive and the HGST hard drive were never in a training bundle, so their sum is 0 and only
-the prior is left.
+The prior $\rho$ is not monotone in this model. It gives $-0.04$ at $f = 0$, $-0.41$ at $f = 1$ and $f = 2$,
+$-0.28$ at $f = 4$, $-0.10$ at $f = 8$ and $-0.02$ at $f = 11$: items seen only once or twice are pushed down most.
+The LG and Sony DVD drives were never in a training bundle, so their sum is 0 and only the prior is left.
 
 ## 9. The gate
 
@@ -372,8 +320,8 @@ bias $\log(e-1)$, so softplus $= 1$ and every term starts with weight 1.
 u(S) = \Big(\log 2,\ \tfrac12\big(\log 2 + \log 5\big),\ 0\Big) = (0.69,\ 1.15,\ 0)
 ```
 
-and the gate returns $w_C = 1.23$, $w_1 = 1.62$, $w_G = 4.44$. Both seeds were seen in training (the third statistic
-is 0), so co-occurrence gets the largest weight, 3.6 times that of content. The weights depend only on $S$, so every
+and the gate returns $w_C = 1.54$, $w_1 = 0.19$, $w_G = 4.60$. Both seeds were seen in training (the third statistic
+is 0), so co-occurrence gets the largest weight, 3.0 times that of content. The weights depend only on $S$, so every
 candidate is scored with these same three numbers.
 
 ## 10. Training
@@ -394,14 +342,14 @@ every size.
 This is a full-catalogue softmax with no negative sampling. Seeds and the other hidden items are excluded from the
 negatives, because they are positives too (`train.loss`).
 
-**Optimization.** AdamW with two groups: learning rate $10^{-2}$ for the small relation parameters ($M_l$,
-$\delta_l$, $\alpha$, $\beta$, $\theta$, $\rho$, gate) and $10^{-3}$ for the content maps and encoder. Weight decay
+**Optimization.** AdamW with two groups: learning rate $10^{-2}$ for the small relation parameters ($\delta_l$,
+$\alpha$, $\beta$, $\theta$, $\rho$, gate) and $10^{-3}$ for the content maps and encoder. Weight decay
 is $10^{-3}$ for both, and gradients are clipped to norm 5.
 
 **Model selection.** After every epoch, NDCG@20 is measured on the validation queries. The best epoch is kept, and
 training stops after 6 epochs without improvement or at 100 epochs.
 
-**Determinism.** Fixed seeds, `torch.use_deterministic_algorithms(True)` and single-threaded BLAS (set when `dials`
+**Determinism.** Fixed seeds, `torch.use_deterministic_algorithms(True)` and single-threaded BLAS (set when `triad`
 is imported) make a run bit-reproducible. Interrupted runs resume from `last.pt`.
 
 All settings live in `train.CONFIG`; nothing is tuned per dataset.
@@ -410,8 +358,7 @@ All settings live in `train.CONFIG`; nothing is tuned per dataset.
 
 During training, the bundle $b$ being scored is itself part of $N$, $\deg$, $f$ and $H$. Without care, the model
 would be rewarded for reading the answer: $c$ was bought with the seeds because of this very bundle. At test time the
-query's bundle is not in the training data, so what the model learned this way would not transfer. Two mechanisms
-prevent it.
+query's bundle is not in the training data, so what the model learned this way would not transfer.
 
 **Leave-one-out (exact).** When $b$ is scored, its own contribution is subtracted from everything it touched:
 
@@ -425,15 +372,7 @@ prevent it.
 These are cheap corrections on the touched rows, not a rebuild of $N$ (`loo_history`, the `bundles is not None`
 branches in `graph_scores` and `content_scores`).
 
-**Cross-fitting (for the label SVD).** $P_l$ and $Q_l$ come from an SVD of the label co-occurrence $\bar N_l$, which is
-built from all of $N$. Subtracting one bundle from $N$ would change the SVD, which cannot be corrected cheaply. So the training bundles are split into five folds:
-- a bundle's fold is a hash of its sorted item set, so identical bundles share a fold (`model.fold_of`);
-- five extra pairs $\big(P_l^{(k)}, Q_l^{(k)}\big)$ are computed from the bundles outside fold $k$;
-- a training bundle in fold $k$ is scored with $\big(P_l^{(k)}, Q_l^{(k)}\big)$, which never saw it;
-- at evaluation, the factors from all training bundles are used (`cross_fitted_labels`).
-
-This is the same idea as cross-fitting in statistics: a feature used to fit a sample is never estimated from that
-sample.
+The label term needs no correction: it reads only the items' labels, which do not depend on any bundle.
 
 ## 12. Evaluation
 
@@ -455,54 +394,181 @@ The metrics are averaged over queries and then over seeds 0, 1 and 2.
 
 ## 13. Parameters and cost
 
-With $d = 128$, rank 64, hidden 32 and label rank 16, the parameter count is the same on every dataset:
+With $d = 128$, rank 64 and hidden 32, the parameter count is the same on every dataset:
 
 | Component | | Shape | Parameters |
 |---|---|---|---:|
 | Content maps $A_z, B_z, A_h, B_h$ | 🔥 | $4 \times (64 \times 128)$ | 32,768 |
 | Feature encoder | 🔥 | $128 \to 32 \to 128$ | 8,352 |
-| Label mixing $M_l$ | 🔥 | $16 \times 16$ per level | 256 per level |
-| Label diagonal $\delta_l$ | 🔥 | $3 \to 16 \to 1$ per level | 81 per level |
+| Same-label score $\delta_l$ | 🔥 | $3 \to 16 \to 1$ per level | 81 per level |
 | Degree exponents $\alpha, \beta$ and scale $\theta$ | 🔥 | | 3 |
 | Popularity prior $\rho$ | 🔥 | $1 \to 16 \to 1$ | 49 |
 | Gate | 🔥 | $3 \to 16 \to (2 + \text{number of label levels})$ | 115 (one level) or 132 (two) |
-| **Total trainable** | | | **41,624** (one level) / **41,978** (Spotify: artist and album) |
-| $X$, $N$, $\deg$, $f$, $H$, $P_l$, $Q_l$ and fold copies | ❄️ | grow with the catalogue | not trained; rebuilt from the data, not stored in checkpoints |
+| **Total trainable** | | | **41,368** (one level) / **41,466** (Spotify: artist and album) |
+| $X$, $N$, $\deg$, $f$, $H$, labels | ❄️ | grow with the catalogue | not trained; rebuilt from the data, not stored in checkpoints |
 
 There are no per-item or per-label embeddings, so the trainable part does not grow with the catalogue. A
-254,000-item catalogue uses the same 41,978 parameters as a 3,500-item one. Only the frozen data grows.
+254,000-item catalogue uses the same 41,466 parameters as a 3,500-item one. Only the frozen data grows.
 
 **Costs:**
 
 | Cost | What it involves | Measured |
 |---|---|---|
-| Setup, once | pair counts ($\sum_b \lvert b\rvert^2$ over training bundles), then 6 rank-16 label SVDs per level (all bundles plus 5 folds) on $K_l \times L_l$ matrices; label factors cached in `cache/` | |
-| Inference, per query | graph $\sum_{s\in S}\deg_s$, content one $64 \times n$ product, labels $16 \times n$ per level | 0.1 ms per query on e-commerce, 0.5–0.6 ms on POG, 3–4 ms on Spotify (4 CPU threads, test pass ÷ queries) |
+| Setup, once | pair counts ($\sum_b \lvert b\rvert^2$ over training bundles), degrees, frequencies and partner histories $H = D^{-1}NX$ | |
+| Inference, per query | graph $\sum_{s\in S}\deg_s$, content one $64 \times n$ product, labels one lookup per item and level | 0.2 ms per query on e-commerce, 0.4–0.5 ms on POG, 2.5–5.4 ms on Spotify (4 CPU threads, test pass ÷ queries) |
 | Training, one seed | | seconds on e-commerce, about an hour on POG, a few hours on Spotify (one thread) |
 
 ## 14. What the trained models learn
 
 The values below are averaged over the three seeds; the gate weights are averaged over the first 512 validation
-queries. $\delta$ is evaluated at a label of median size.
+queries. $\delta$ is evaluated for one of three seeds sharing the candidate's label, at the median label size
+(`paper/figdata/learned.py`).
 
 | Dataset | $\theta$ | $\alpha$ | $\beta$ | Gate weight: content / labels / graph | $\delta$ for one of 3 seeds sharing $c$'s label |
 |---|---:|---:|---:|---|---|
-| Electronic | 1.94 | .05 | .15 | 1.33 / 2.16 / 5.05 | +0.73 (category) |
-| Food | 1.77 | .01 | .05 | 1.21 / 1.05 / 4.70 | +1.63 |
-| Clothing | 1.77 | .04 | −.15 | 1.88 / 1.60 / 6.57 | +1.91 |
-| POG_DENSE | 4.58 | .41 | .37 | 5.99 / 15.24 / 3.14 | **−0.31** |
-| POG | 2.38 | .31 | .31 | 4.18 / 14.78 / 3.73 | **−0.16** |
-| Spotify_sparse | 0.83 | −.07 | −.05 | 3.05 / 1.24, 1.28 / 0.82 | +2.82 (artist), +1.43 (album) |
-| Spotify | 1.10 | .33 | −.30 | 3.07 / 1.01, 1.14 / 1.10 | +2.63 (artist), +1.17 (album) |
+| Electronic | 1.87 | .06 | .13 | 1.89 / 0.63 / 4.94 | +0.21 (category) |
+| Food | 1.63 | −.05 | −.06 | 2.13 / 0.87 / 4.05 | +1.00 |
+| Clothing | 1.68 | −.07 | −.18 | 2.58 / 1.06 / 5.72 | +1.27 |
+| POG_DENSE | 4.84 | .41 | .36 | 5.68 / 0.45 / 2.96 | **−22.5** |
+| POG | 2.95 | .29 | .28 | 3.83 / 1.00 / 2.94 | **−6.17** |
+| Spotify_sparse | 0.83 | −.07 | −.05 | 3.05 / 1.23, 1.27 / 0.82 | +1.88 (artist), +1.17 (album) |
+| Spotify | 1.10 | .33 | −.30 | 3.08 / 0.92, 1.07 / 1.10 | +1.87 (artist), +1.20 (album) |
 
-- **On POG outfits, a shared category is penalized,** and the label term has the largest gate weight. An outfit
-  needs one item per category, so "same category as a seed" is evidence against. Nothing in the model says this; the
-  sign of $\delta$ is learned.
+- **On POG outfits, a shared category is penalized strongly.** An outfit needs one item per category, so "same
+  category as a seed" is evidence against: weighted by the gate, a candidate in a seed's category loses about 10 points
+  on POG_DENSE, more than any other term adds. Nothing in the model says this; the sign of $\delta$ is learned.
 - **On playlists, a shared artist or album is rewarded.** On the e-commerce sets a shared category is rewarded too:
   their bundles group related products.
 - **The degree exponents differ by domain.** POG learns to discount popular items on both sides
-  ($\alpha, \beta \approx .3$–$.4$). Spotify discounts popular seeds but slightly favours popular candidates
-  ($\beta < 0$). The e-commerce sets keep nearly raw counts.
+  ($\alpha, \beta \approx .3$–$.4$). Spotify_sparse and the e-commerce sets keep nearly raw counts, with a slight
+  preference for popular candidates ($\beta < 0$) on Clothing; on Food the sign changes from seed to seed. Full
+  Spotify discounts popular seeds ($\alpha = .33$) and favours popular candidates ($\beta = -.30$).
+
+### Reading the parameters
+
+Do the trained values mean something, or are they just numbers that happen to fit? For each part of the model we
+compare what it learned with a quantity measured directly from the data. Everything here uses the first 512
+validation queries of seeds 0, 1 and 2, never test (`paper/figdata/parameters.py`, which writes
+`parameters.json`). These measurements describe what each part encodes; the ablations (§15) test whether it helps.
+
+**$\rho$ learns the base rate of targets by popularity.** The loss is a softmax over the whole catalogue. If the
+only score were a function of an item's training frequency $f$, the best such score would be the *base rate*
+
+$$b(f) = \log\frac{\text{share of targets with frequency } f}{\text{share of catalogue items with frequency } f},$$
+
+up to a constant, since a softmax ignores a shift of all scores. So the test is whether the weighted prior
+$w_G\,\rho(\log(1+f))$ has the shape of $b(f)$. Items are grouped into frequency bins (0, 1, 2, 3–4, 5–9, 10–19,
+20–49, 50+), keeping bins with at least 20 items and 20 targets.
+
+| | Electronic | Food | Dunnhumby | POG_DENSE | POG | Spotify_sparse | Spotify |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Bins | 3 | 3 | 8 | 8 | 7 | 8 | 8 |
+| corr($w_G\rho$, $b$) over bins | .97–.99 | .95–.97 | .97–.99 | .99 | 1.00 | .93–.95 | .67–.71 |
+
+Clothing has only two bins (f = 0 and 1), so no correlation is given for it. Example, POG seed 0: from $f=0$ to
+$f=1$ the base rate falls by 2.27 and $w_G\rho$ by 2.03; from $f=1$ to $f=20$–49 the base rate rises by 4.59 and
+$w_G\rho$ by 4.13. On full Spotify the fit is weaker because the graph term already carries popularity there
+(next paragraph): $\rho$ stays nearly flat and $\beta < 0$ does the work.
+
+**Unseen items are more likely targets than items seen once.** On every dataset the base rate is higher at $f=0$
+than at $f=1$ (by 1.4–2.3 on e-commerce, POG and Spotify; by .4 on Dunnhumby). The reason is how a catalogue is
+built: it holds every item of any bundle, so an item with $f=0$ is in the catalogue only because some validation or
+test bundle contains it. $\rho$ learns this gap on the e-commerce sets, Dunnhumby and POG (on Clothing it is 3.1,
+twice the base-rate gap); on Spotify it learns little of it (.04 and .29). No test label is used: leave-one-out
+training produces the same situation from training bundles alone (an item seen once has $f=0$ once its bundle is
+left out). But the model does use the fact that the catalogue lists the held-out items, which is standard in these
+datasets and is worth stating when results are compared.
+
+**How backpropagation learns the bonus.** $\rho$ is one shared curve of $\log(1+f)$, not a parameter per item, so
+its value at $f=0$ is pushed by every training target and every negative that has $f=0$. Under leave-one-out, a
+training target that occurs in no other training bundle has $f=0$ (14–64% of training targets, 45% on Electronic);
+it pushes $\rho(0)$ up. Every $f=0$ item outside the bundle is a softmax negative and pushes it down; in these
+catalogues those are the validation- and test-only items. The gradient on $\rho(0)$ is (softmax mass on $f=0$ items)
+minus [target has $f=0$], and it settles where the two balance: the training base-rate gap, 1.3–2.2, within .25 of the
+test gap on every dataset. On Electronic the bonus $w_G(\rho(0)-\rho(\log 2))$ is +2.0 after one epoch and stays
+1.2–2.0 over 30 epochs without early stopping.
+
+**It follows the catalogue, not the split** (RESULTS.md §2a; bundlefuse `experiments/catalogue_check/run.py`). On
+two fresh splits of Electronic and Food the bonus stays 1.4–1.8 and adds .017–.042 NDCG@20. Adding $P = 1, 4, 16
+\times n_0$ never-bundled items (copies of real items' features and categories) lowers the test base-rate value by
+$\log(1+P/n_0)$; the learned bonus follows it from training alone, turns into a penalty at $16n_0$ ($-0.63$
+Electronic, $-1.05$ Food), and its gain at test falls to zero from $4n_0$ on. Because the payoff depends on the
+catalogue, the paper gives the simple baselines the same prior and reports TRIAD without the bonus ($\rho(0)$ replaced
+by $\rho(\log 2)$ at test time).
+
+**The degree exponents: readable on four datasets, not identified on two.** A count $N_{sc}$ is multiplied by
+$\deg_s^{-\alpha}\deg_c^{-\beta}$. The size of that factor at the 90th-percentile degree (range over seeds):
+
+| Dataset | 90th-pct degree | $\alpha$ | $\beta$ | Busy candidate | Busy seed |
+|---|---:|---:|---:|---:|---:|
+| POG_DENSE | 10 | .40–.41 | .35–.36 | ×0.44 | ×0.39 |
+| POG | 6 | .26–.34 | .23–.33 | ×0.56–0.67 | ×0.55–0.63 |
+| Spotify | 697 | .31–.35 | −.28 to −.32 | ×6.1–7.9 | ×0.10–0.13 |
+| Dunnhumby | 134 | .13–.14 | −.11 | ×1.7 | ×0.50–0.54 |
+| Electronic | 11 | .06 | .13 | ×0.73 | ×0.87 |
+| Clothing | 9 | −.02 to −.16 | −.17 to −.19 | ×1.4–1.5 | ×1.0–1.4 |
+| Food | 10 | −.16 to .04 | −.22 to .05 | sign changes | sign changes |
+| Spotify_sparse | 347 | −.04 to −.09 | −.02 to −.07 | ×1.1–1.5 | ×1.2–1.7 |
+
+On POG, busy items are discounted on both sides, much like the normalization in RP3β. On Spotify, a hit song as a
+seed says little about a playlist (×0.1), but hits are likely candidates (×7), which is why $\rho$ can stay flat
+there. On Dunnhumby, popular groceries are favoured as candidates and discounted as seeds, the same pattern in milder
+form. On Food the sign changes between seeds, and on Spotify_sparse the values are small and vary: there the
+exponents are not pinned down by the data and should not be read. On the e-commerce sets degrees are small (about 10
+at the 90th percentile), so the exponents matter little in any case.
+
+**The gate moves weight to content when the seeds are unseen.** The gate maps three query statistics to one weight
+per term. Varying one statistic around the median validation query (seed 0; for content the other seeds agree in direction except
+on Dunnhumby, while changes in the label and graph weights smaller than about .5 do not always keep their direction across seeds):
+
+| Share of unseen seeds 0 → 1 | Content | Labels | Graph |
+|---|---|---|---|
+| Electronic | 1.76 → 2.10 | 0.23 → 0.26 | 5.78 → 5.70 |
+| Food | 2.12 → 2.62 | 0.63 → 0.90 | 4.96 → 4.69 |
+| Clothing | 2.12 → 2.90 | 0.85 → 0.90 | 4.52 → 6.47 |
+| Dunnhumby | 1.47 → 1.79 | 0.62 → 0.37 | 0.93 → 0.85 |
+| POG_DENSE | 5.54 → 7.61 | 0.63 → 0.66 | 3.26 → 4.15 |
+| POG | 2.83 → 3.84 | 1.15 → 0.91 | 2.39 → 2.16 |
+| Spotify_sparse | 3.18 → 4.90 | artist 0.99 → 1.50, album 1.09 → 2.00 | 0.85 → 0.63 |
+| Spotify | 3.21 → 5.10 | artist 0.73 → 1.35, album 0.91 → 2.00 | 1.13 → 0.73 |
+
+An unseen seed has no co-occurrence counts and no partner history, so its evidence can only come from its features
+and labels. The content weight rises with the share of unseen seeds on seven datasets in every seed; on Dunnhumby it
+is flat (seeds 1 and 2: 1.36 → 1.38 and 1.42 → 1.34). On Spotify both label weights rise as well and the graph weight
+falls. On Clothing and POG_DENSE the graph weight rises instead: with unseen seeds the graph term is mostly the
+prior $\rho$, which then carries more weight. The content weight also grows with $|S|$ (POG: 5.3 at
+$|S|=2$, 12.8 at $|S|=20$). Part of that is rescaling, since the mean of more seed vectors is shorter, so it is not
+read as meaning.
+
+**The content maps: near title similarity on e-commerce, a new relation on POG and Spotify.** The content score is
+the sum of four blocks,
+
+$$C = \bar z^\top (A_z^\top B_z) z_c + \bar z^\top (A_z^\top B_h) h_c + \bar h^\top (A_h^\top B_z) z_c + \bar h^\top (A_h^\top B_h) h_c,$$
+
+called zz, zh, hz and hh. zz asks "do the seeds look like the candidate?" and zh asks "do the seeds look like the
+items the candidate is usually bundled with?", which is a complement signal. The table gives how much each block
+moves the scores within each query's top 100 (standard deviation, gate weight included), and how far
+$A_z^\top B_z$ moved from its start $10\,[I_{64}\ 0;\ 0\ 0]$ (range over seeds):
+
+| | zz | zh | hz | hh | Change of $A_z^\top B_z$ | Share outside the first 64 dims | cos($z$, $x$) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Electronic, Food, Clothing | .89–1.26 | .06–.20 | .02–.06 | ≤.01 | 11–27% | 0.3–2.2% | .78–.92 |
+| Dunnhumby | .66–.67 | .14–.16 | .12–.14 | .09–.10 | 56–58% | 12% | .62–.64 |
+| POG_DENSE | .49–.56 | .32–.37 | .36–.42 | .37–.42 | 80–100% | 23–32% | .83–.86 |
+| POG | .54–.60 | .19–.24 | .14–.18 | .13–.16 | 63–91% | 14–28% | .79–.82 |
+| Spotify_sparse | .53–.54 | .55–.60 | .16–.21 | .13–.20 | 39–49% | 5–9% | .60–.63 |
+| Spotify | .46 | .32–.35 | .21–.24 | .10–.17 | 45–61% | 7–13% | .60–.66 |
+
+On e-commerce, content stays close to "similar title": the map moves little from its start, stays in the first 64
+dimensions, and the history blocks add little. On POG_DENSE the map is largely rebuilt and uses dimensions it started
+without, and all four blocks matter: the model learns which looks go together, not which look alike, which is what an
+outfit needs. On Spotify_sparse, "sounds like the candidate's usual neighbours" (zh) moves the shortlist as much as
+"sounds like the candidate" (zz).
+
+**The label penalty on POG works as a hard rule.** On POG and POG_DENSE the spread of the label term over the top 100
+is 0 (at most .003): every candidate that shares a seed's category is pushed out of the top 100, so the shortlist
+contains no repeated category. On Spotify the artist term moves the shortlist more than the album term (.66–1.00 vs
+.35–.54).
 
 ## 15. Design decisions and the evidence for them
 
@@ -521,9 +587,18 @@ Removing it drops six rank-64 SVDs of the $n \times n$ graph (about 2.5 minutes 
 inference about 3× faster in our timings, and leaves one graph term to explain. It was removed on that trade-off,
 accepting the Spotify cost.
 
-**Spectral label factors instead of free label embeddings.** An earlier version learned $P$ and $Q$ freely. It
-memorized the bundles of rare labels. Fixing $P$ and $Q$ to the SVD of the observed label co-occurrence, and
-learning only $M$, removed that and cut the label parameters to 256 per level.
+**No label-to-label relation.** An earlier version, DIALS, added a second label part,
+$\tfrac{1}{\lvert S\rvert}\, t_l(S)^\top P_l M_l\, Q_l[g_l(c)]^\top$: fixed factors $P_l, Q_l$ from a rank-16 SVD of the
+normalized label co-occurrence $\Gamma_l^\top N \Gamma_l$, and a learned $16 \times 16$ matrix $M_l$. Because the SVD saw
+every training bundle, training used factors cross-fitted over five folds. Retrained without that part (three seeds,
+Holm over 12 tests), test NDCG@20 changed by:
+- $+.004$ on Electronic (better without it, not significant), $.000$ on Food, Clothing and Spotify_sparse;
+- $-.001$ on POG (not significant) and $-.002$ on POG_DENSE (.280 → .278, significant).
+
+On items never seen in training, where the graph term has nothing to say, it did not help on any dataset. With label
+ranks 4, 64 and 128 instead of 16, validation NDCG@20 stayed within ±.006 on Electronic, Food and Clothing. It was
+removed on that evidence, together with the cross-fitting, the six label SVDs per level and 256 parameters per level,
+accepting the POG_DENSE cost. Section 7 explains why the graph term already covers what it modelled.
 
 **Leave-one-out without random history masking.** An earlier version also hid a random 25% of item histories during
 training. Leave-one-out alone was compared with leave-one-out plus that masking on validation, and was kept.
@@ -533,25 +608,24 @@ mismatch between training and full-catalogue evaluation.
 
 ## 16. Code map
 
-    dials/
-      __init__.py    pins BLAS to one thread before numpy loads (bit-reproducible SVDs)
+    triad/
+      __init__.py    pins BLAS to one thread before numpy loads (bit-reproducible feature SVDs)
       data.py        Dataset; load(name): splits, features (X), labels (Γ), clean test queries
                      load_supplied: POG / Spotify supplied splits; projected_features: released modalities → 128 dims
-                     load_resplit:  Electronic / Food / Clothing: deduplicate, 70/10/20 split, hide half
-      model.py       pair_counts (N, deg, f); fold_of, label_factors, cross_fitted_labels (P_l, Q_l and fold copies)
-                     DIALS: content_scores (§6), label_scores (§7), graph_scores (§8), gate_weights (§9), forward (§5)
-      train.py       CONFIG; spectral (cached label factors); build / load; hide, loss, fit (§10)
+                     load_resplit:  Electronic / Food / Clothing: deduplicate, BLIP title features, 70/10/20 split, hide half
+      model.py       pair_counts (N, deg, f)
+                     TRIAD: content_scores (§6), label_scores (§7), graph_scores (§8), gate_weights (§9), forward (§5)
+      train.py       CONFIG; build / load; hide, loss, fit (§10)
       evaluate.py    top_items, query_metrics, evaluate, subset (§12)
-      __main__.py    python -m dials train | test
+      __main__.py    python -m triad train | test
 
 The docstring at the top of `model.py` maps every buffer and parameter name to its symbol here (for example
-`history_sum` is $NX$, `mixing[i]` is $M_l$), and comments in the code cite the sections of this guide.
+`history_sum` is $NX$, `same_label[i]` is $\delta_l$), and comments in the code cite the sections of this guide.
 
 Data flow for one training run:
 
 1. `data.load` reads the splits, the features $X$, the labels and the clean test queries.
-2. ❄️ `train.spectral` computes $P_l, Q_l$ from all training bundles plus one pair per fold, and caches them in `cache/`.
-3. ❄️ `DIALS(...)` builds $N$, $\deg$, $f$ and $H$ from the training bundles; 🔥 the parameters are initialized.
-4. 🔥 Each epoch `train.fit` runs batches of 32 bundles through hide → leave-one-out forward → loss → AdamW, then
+2. ❄️ `TRIAD(...)` builds $N$, $\deg$, $f$ and $H$ from the training bundles; 🔥 the parameters are initialized.
+3. 🔥 Each epoch `train.fit` runs batches of 32 bundles through hide → leave-one-out forward → loss → AdamW, then
    evaluates validation NDCG@20 and keeps the best epoch.
-5. The run is saved to `runs/<dataset>/seed<s>/`, and `python -m dials test` scores the test queries.
+4. The run is saved to `runs/<dataset>/seed<s>/`, and `python -m triad test` scores the test queries.
