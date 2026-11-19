@@ -62,7 +62,7 @@ includes a co-occurrence or neighbourhood baseline.
 
 We take the opposite view. Much of what makes items go together is not about any single item. An outfit takes one
 item from each of several categories and rarely two from the same one; a playlist does the reverse and returns to the
-same artists. That is a relation among a few hundred labels, and every training bundle carries evidence about it.
+same artists. That is a relation among labels, not items, and every training bundle carries evidence about it.
 Content similarity and co-occurrence are likewise functions of item pairs, scored the same way for every item, and an
 item bundled with everything should count for less. What does depend on the query is how far to trust each kind of
 evidence: seeds seen in many bundles have reliable counts, and seeds seen in none have only their content and labels.
@@ -91,7 +91,8 @@ with thirteen tuned simple baselines. Tuned simple methods match or beat CLHE, R
 Bundle-MLLM. TRIAD scores above all four, and goes beyond the simple methods exactly where bundles
 carry rich structure, in outfits and playlists, while it is level with them on small e-commerce sets.
 \item \textbf{Two benchmark effects, isolated.} The catalogue effect above explains much of the gain on the small
-e-commerce sets, for TRIAD and for the simple baselines alike, and disappears when never-bundled items are added; and the e-commerce release includes a user--item
+e-commerce sets, for TRIAD and for the simple baselines alike, and TRIAD's gain from it disappears when never-bundled
+items are added; and the e-commerce release includes a user--item
 file that holds the test bundles, from which a graph raises RaMen's Recall@20 on our split by .14 to .26.
 \end{itemize}
 
@@ -111,11 +112,11 @@ items: over labels, between item features, and over co-occurrence counts.}
 personalized bundle generation creates one for a user \cite{bgn,pog}. Bundle construction starts from a partial
 bundle and has no user. CLHE \cite{clhe}, RaMen \cite{ramen} and Caro \cite{caro} learn item representations from
 several views and score candidates against a pooled seed vector; Bundle-MLLM \cite{bundlemllm} and in-context
-prompting \cite{adabundle} use language models; DDBC \cite{ddbc} generates the missing set jointly. All learn a
-representation per item, and their baselines are other neural models. Set models such as DeepSets
+prompting \cite{adabundle} use language models; DDBC \cite{ddbc} generates the missing set jointly. CLHE, RaMen,
+Bundle-MLLM and DDBC learn a representation per item, and their baselines are other neural models. Set models such as DeepSets
 \cite{deepsets} and the Set Transformer \cite{settransformer}, and basket completion with determinantal point
-processes \cite{gartrell2017}, also pool learned item embeddings; TRIAD pools fixed statistics and learns only how to
-weigh them. Feature-based cold-start models \cite{lightfm,dropoutnet} map new items into a per-item latent space;
+processes \cite{gartrell2017}, also pool learned item embeddings; TRIAD pools fixed item statistics and learns functions of
+them shared by all items. Feature-based cold-start models \cite{lightfm,dropoutnet} map new items into a per-item latent space;
 TRIAD has none, so a new item is scored by the same content and label terms as any other.
 
 \paragraph{Simple item-to-item methods.} ItemKNN \cite{sarwar2001}, RP3$\beta$ \cite{rp3beta}, EASE \cite{steck2019}
@@ -293,6 +294,7 @@ RP3$\beta$ & .353 & .255 & .342 & .275 & .238 & .195\\
 EASE & .354 & .254 & .342 & .267 & .238 & .201\\
 Content+ItemKNN & .435 & .312 & .583 & .460 & .582 & .427\\
 Label+ItemKNN+content & .437 & .320 & .594 & .464 & \textbf{.594} & \textbf{.440}\\
+\midrule
 CLHE & .362 & .259 & .419 & .271 & .325 & .196\\
 RaMen & .345 & .256 & .345 & .265 & .240 & .190\\
 \midrule
@@ -315,6 +317,7 @@ RP3$\beta$ & .345 & .241 & .030 & .020 & .118 & .149 & .124 & .210\\
 EASE & .333 & .237 & .029 & .019 & -- & -- & -- & --\\
 Content+ItemKNN & .340 & .232 & .029 & .019 & .120 & .155 & .133 & .223\\
 Label+ItemKNN+content & .342 & .249 & .036 & .023 & .151 & .209 & .147 & .247\\
+\midrule
 CLHE & .349 & .248 & .026 & .017 & .097 & .115 & .108 & .179$^\ddagger$\\
 RaMen & -- & -- & .037 & .023$^\dagger$ & -- & -- & .109 & .188$^\dagger$\\
 \midrule
@@ -337,7 +340,7 @@ test queries: $\Delta$ NDCG@20 with 95\% cluster-bootstrap interval and Holm-cor
 \input{tables/tests}
 \end{table}
 
-\paragraph{Outfits and playlists: TRIAD is clearly ahead.} On POG\_DENSE, POG, Spotify\_sparse and Spotify, TRIAD
+\paragraph{Outfits and playlists: TRIAD is significantly ahead.} On POG\_DENSE, POG, Spotify\_sparse and Spotify, TRIAD
 leads the best simple baseline by +.037, +.007, +.048 and +.035 NDCG@20, and all eight tests reject after Holm
 (Tables~\ref{tab:main},~\ref{tab:tests}). Without the unseen-item bonus the margins hardly change.
 
@@ -348,9 +351,9 @@ behind on all three, significantly on Clothing ($-$.072). On short e-commerce bu
 comes from how it treats items that no training bundle contains.
 
 \paragraph{Neural models trail TRIAD and, mostly, simple methods.} TRIAD is ahead of CLHE by +.013 to +.242 NDCG@20 on
-the six datasets where it was rerun and of RaMen by +.078 to +.249 on e-commerce; all 18 of these tests and their
-Recall@20 counterparts reject after Holm. The best simple method matches or beats CLHE everywhere (on POG\_DENSE
-.249 against .248) and beats RaMen on e-commerce by .06--.25. Our CLHE reruns are close to the numbers RaMen reports
+the six datasets where it was rerun and of RaMen by +.078 to +.249 on e-commerce; all nine differences and their
+Recall@20 counterparts reject after Holm. The best simple method matches or beats CLHE in NDCG@20 everywhere (on
+POG\_DENSE .249 against .248) and beats RaMen on e-commerce by .06--.25. Our CLHE reruns are close to the numbers RaMen reports
 for CLHE on the same split files (.017 against .019 NDCG@20 on POG, .179 against .181 on Spotify). RaMen reports
 Recall@20 of .837 and .846 on Electronic and Food on an unreleased split; the data's user--item file holds the items
 of every bundle, test bundles included, and RaMen rerun on our split with a graph from it reaches .505 / .490 / .499
