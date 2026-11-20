@@ -1,6 +1,6 @@
 \documentclass[aspectratio=169,11pt]{beamer}
-\usetheme[progressbar=frametitle,numbering=fraction]{metropolis}
-\usepackage{graphicx,booktabs,amsmath,amssymb}
+\usetheme[progressbar=frametitle,numbering=fraction,sectionpage=none]{metropolis}
+\usepackage{graphicx,booktabs,amsmath,amssymb,array}
 \usepackage{tikz}
 \usetikzlibrary{arrows.meta,positioning,shapes.geometric,calc}
 \usepackage{pgfplots}
@@ -234,24 +234,171 @@ Seeds seen in many bundles: trust counts. \quad Unseen seeds: trust content and 
 \end{block}
 \end{frame}
 
+\begin{frame}{Inputs: three sources, computed once}
+\centering
+\begin{tikzpicture}[scale=.88, transform shape, font=\small, box/.style={draw, rounded corners, align=center, minimum width=33mm, minimum height=11mm},
+  arr/.style={-{Stealth[length=2.5mm]}, thick, gray}]
+\node[box, fill=soft] (f) at (0,1.9) {\textbf{Item features}\\[-1pt]\scriptsize images, text, audio};
+\node[box, fill=soft] (l) at (0,0) {\textbf{Labels}\\[-1pt]\scriptsize category; artist, album};
+\node[box, fill=soft] (b) at (0,-1.9) {\textbf{Training bundles}\\[-1pt]\scriptsize sets of items};
+\node[box, fill=simple!12] (x) at (5.2,1.9) {$X$: one 128-d vector per item};
+\node[box, fill=simple!12] (g) at (5.2,0) {label of each item,\\ label sizes $n_g$};
+\node[box, fill=simple!12, minimum height=16mm] (n) at (5.2,-1.9) {co-occurrence $N$, frequency $f$,\\ degree $\deg$, partner history $H$};
+\node[box, fill=triad!15] (c) at (10.2,1.9) {\textbf{content} term};
+\node[box, fill=triad!15] (lt) at (10.2,0) {\textbf{label} term};
+\node[box, fill=triad!15] (gr) at (10.2,-1.9) {\textbf{graph} term};
+\draw[arr] (f) -- (x); \draw[arr] (l) -- (g); \draw[arr] (b) -- (n);
+\draw[arr] (x) -- (c); \draw[arr] (g) -- (lt); \draw[arr] (n) -- (gr); \draw[arr] (n.north east) -- (c.south west);
+\node[font=\scriptsize\bfseries, gray] at (0,3.05) {raw inputs};
+\node[font=\scriptsize\bfseries, gray] at (5.2,3.05) {frozen structures};
+\node[font=\scriptsize\bfseries, gray] at (10.2,3.05) {read by};
+\end{tikzpicture}\\[6pt]
+{\small Per query: the \alert{seeds $S$}. Nothing above is trained; only how the terms use it.}
+\end{frame}
+
+\begin{frame}{Item features: one 128-d vector per item}
+\centering\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lll}
+\toprule
+Datasets & Modality 1 & Modality 2\\
+\midrule
+POG, POG\_DENSE & BLIP image (768-d) & BLIP text of description (768-d)\\
+Spotify, Spotify\_sparse & CLAP audio (512-d) & CLAP text of metadata (512-d)\\
+Electronic, Food, Clothing & BLIP text of the title (768-d) & none\\
+\bottomrule
+\end{tabular}
+\vfill
+\begin{tikzpicture}[font=\small, stp/.style={draw, rounded corners, fill=soft, minimum height=8mm, align=center},
+  arr/.style={-{Stealth[length=2.5mm]}, thick}]
+\node[stp] (a) {normalize\\each modality};
+\node[stp, right=6mm of a] (b) {concatenate,\\normalize};
+\node[stp, right=6mm of b] (c) {rank-128\\SVD};
+\node[stp, right=6mm of c, fill=simple!15] (d) {$X\in\mathbb{R}^{n\times128}$};
+\draw[arr] (a)--(b); \draw[arr] (b)--(c); \draw[arr] (c)--(d);
+\end{tikzpicture}
+\vfill
+{\small No bundle and no label is used. The simple content baselines get \alert{the same $X$}.}
+\end{frame}
+
 \begin{frame}{Architecture}
 \centering
 \includegraphics[height=.76\textheight]{fig2_arch.pdf}\\
 {\small 41,368 trained parameters, \alert{none} belongs to an item}
 \end{frame}
 
+
+
+
+
+
+
+
+
 \begin{frame}{The score}
 \[
-s(c\mid S)=\underbrace{w_C(S)\,C(S,c)}_{\text{content}}+\underbrace{\textstyle\sum_l w_l(S)\,L_l(S,c)}_{\text{labels}}+\underbrace{w_G(S)\,G(S,c)}_{\text{co-occurrence}}
+s(c\mid S)=w_C(S)\,\underbrace{C(S,c)}_{\text{content}}+\textstyle\sum_l w_l(S)\,\underbrace{L_l(S,c)}_{\text{labels}}+w_G(S)\,\underbrace{G(S,c)}_{\text{graph}}
 \]
-\vspace{2mm}
 \begin{columns}[T]
-\column{.32\textwidth}
-\textbf{Content}\\\small bilinear map of features and \emph{partner history}; asymmetric: a jacket can call for boots
-\column{.32\textwidth}
-\textbf{Labels}\\\small a small function whose \alert{sign is learned}: a shared label can count \emph{against} a candidate
-\column{.32\textwidth}
-\textbf{Co-occurrence}\\\small counts discounted by \alert{learned} degree powers, plus a popularity prior
+\column{.48\textwidth}\small
+\begin{itemize}
+\item three answers for every candidate $c$
+\item weights $w(S)$ from the \alert{gate}, one per term
+\item all $n$ items scored at once, ranked
+\end{itemize}
+\column{.5\textwidth}
+\begin{block}{Real query (Electronic)}
+\small seeds: two \textbf{DVD drives}\quad missing: a \textbf{hard drive}\\[3pt]
+$s=1.54\times6.66+0.19\times0+4.60\times1.70=\mathbf{18.05}$\\[2pt]
+highest of 3,497 items: \alert{ranked 1st}
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Content: what the bundle needs vs.\ what the item offers}
+\begin{columns}[c]
+\column{.55\textwidth}\centering
+\begin{tikzpicture}[scale=.85, transform shape, font=\small, v/.style={draw, rounded corners, fill=soft, minimum height=7mm, align=center},
+  m/.style={draw, fill=triad!20, minimum width=11mm, minimum height=7mm}, arr/.style={-{Stealth[length=2.3mm]}, thick}]
+\node[v] (s) at (0,1) {seeds};
+\node[m] (a) at (2,1) {$A$};
+\node[v, fill=simple!15] (q) at (4.2,1) {needs \scriptsize(64-d)};
+\node[v] (c) at (0,-.6) {candidate};
+\node[m] (b) at (2,-.6) {$B$};
+\node[v, fill=simple!15] (k) at (4.2,-.6) {offers \scriptsize(64-d)};
+\node[draw, thick, rounded corners, fill=triad!12] (sc) at (6.4,.2) {dot product};
+\draw[arr] (s)--(a); \draw[arr] (a)--(q); \draw[arr] (c)--(b); \draw[arr] (b)--(k); \draw[arr] (q)--(sc); \draw[arr] (k)--(sc);
+\end{tikzpicture}\\[4pt]
+{\scriptsize input: item features and \emph{partner history}\\ (what the item was bundled with)}
+\column{.42\textwidth}
+\begin{itemize}\small
+\item $A\neq B$: \alert{asymmetric}\\ a shirt needs trousers, not more shirts
+\item starts as plain feature similarity
+\end{itemize}
+\vspace{2mm}
+\begin{block}{Example}\small
+hard drive: $C=6.66$\\
+other DVD drives: $C=7.20$\\
+content alone would rank the target \textbf{37th}
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Labels: is sharing a label good or bad?}
+\begin{columns}[c]
+\column{.55\textwidth}
+\begin{itemize}
+\item fires when the candidate \alert{shares a label} with a seed\\ (category; artist, album)
+\item a small function of: how many seeds share it, query size, label size
+\item its \alert{sign is learned}
+\end{itemize}
+\column{.42\textwidth}
+\begin{block}{Learned}\small
+outfits: shared category $\Rightarrow$ \textbf{$-$22.5}\\
+playlists: shared artist $\Rightarrow$ \textbf{+1.88}\\[3pt]
+example: another DVD drive $\Rightarrow$ +0.63\\
+hard drive (no shared category) $\Rightarrow$ 0
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Graph: has it been bundled with the seeds?}
+\begin{columns}[c]
+\column{.55\textwidth}
+{\small\[
+G=\theta\log\!\Big(1+\textstyle\sum_{s}N_{sc}\,\deg_s^{-\alpha}\deg_c^{-\beta}\Big)+\rho(f_c)
+\]}
+\begin{itemize}\small
+\item co-occurrence counts, \alert{discounted} for items bundled with everything
+\item discount powers $\alpha,\beta$ are \alert{learned}
+\item a learned \alert{popularity prior} $\rho$
+\end{itemize}
+\column{.42\textwidth}
+\begin{block}{Example}\small
+hard drive bundled with the seeds 1 and 2 times\\[2pt]
+$\Rightarrow G=1.70$\\[3pt]
+never-bundled DVD drives: no counts, prior only
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{Gate: how much to trust each answer}
+\begin{columns}[c]
+\column{.55\textwidth}
+Reads three numbers about the query:
+\begin{enumerate}\small
+\item how many seeds
+\item how often the seeds were bundled
+\item share of seeds never bundled
+\end{enumerate}
+\vspace{2mm}
+\small Unseen seeds: no counts to rely on $\Rightarrow$ weight moves to \alert{content and labels}
+\column{.42\textwidth}
+\begin{block}{Example}\small
+both seeds seen in training\\[2pt]
+$w_C=1.54,\ w_{\text{label}}=0.19,\ w_G=\mathbf{4.60}$\\[2pt]
+co-occurrence trusted \textbf{3$\times$} more than content
+\end{block}
 \end{columns}
 \end{frame}
 
