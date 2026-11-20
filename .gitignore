@@ -19,3 +19,6 @@ runs_dials/
 cache_blip/
 *.bbl
 *.blg
+*.nav
+*.snm
+*.toc

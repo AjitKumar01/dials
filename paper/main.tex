@@ -16,24 +16,40 @@
 \begin{document}
 \title{TRIAD: Bundle Completion from Shared Relations Instead of Item Embeddings}
 \titlerunning{TRIAD: Bundle Completion from Shared Relations}
-\author{Anonymous Submission}
-\authorrunning{Anonymous}
-\institute{Anonymous Institution}
+% anonymous version for double-blind submission:
+% \author{Anonymous Submission}
+% \authorrunning{Anonymous}
+% \institute{Anonymous Institution}
+\author{Ajit \and Soumen}
+\authorrunning{Ajit and Soumen}
+\institute{}  % add affiliation and e-mail
 \maketitle
 
 % =====================================================================================================================
 \begin{abstract}
+% [hidden for now: DDBC / Bundle-MLLM] Completing a partial bundle, such as the rest of an outfit or the next songs of a playlist, is usually treated as
+% [hidden for now: DDBC / Bundle-MLLM] representation learning: recent models learn a vector for every item, with millions of parameters or a fine-tuned
+% [hidden for now: DDBC / Bundle-MLLM] 7B-parameter language model. Yet most items occur in only a handful of bundles, and what makes items go together is
+% [hidden for now: DDBC / Bundle-MLLM] largely not about any single item: an outfit avoids repeating a category, a playlist returns to the same artists, and
+% [hidden for now: DDBC / Bundle-MLLM] an item bundled with everything says little about any one bundle. We therefore learn bundle completion at the level of
+% [hidden for now: DDBC / Bundle-MLLM] these shared relations. TRIAD scores a candidate by combining content similarity, a shared-label rule whose sign it
+% [hidden for now: DDBC / Bundle-MLLM] learns per domain, and degree-discounted co-occurrence, with weights that adapt to how familiar the seeds are; its
+% [hidden for now: DDBC / Bundle-MLLM] 41,368 parameters belong to no item, and it is trained with each bundle removed from its own statistics, so it never
+% [hidden for now: DDBC / Bundle-MLLM] learns from counts that contain the answer. This view also raises a question earlier evaluations left open: how strong
+% [hidden for now: DDBC / Bundle-MLLM] are co-occurrence methods? Tuned, they match or beat CLHE, RaMen and DDBC. On seven fashion, music and
+% [hidden for now: DDBC / Bundle-MLLM] e-commerce datasets TRIAD scores above all four recent models, including Bundle-MLLM, and is significantly ahead of
+% [hidden for now: DDBC / Bundle-MLLM] the strongest tuned simple baseline on outfits and playlists. On small e-commerce sets it is level with that baseline:
+% [hidden for now: DDBC / Bundle-MLLM] there much of any gain comes from how the benchmark catalogues are built, an effect we isolate and control for.
 Completing a partial bundle, such as the rest of an outfit or the next songs of a playlist, is usually treated as
-representation learning: recent models learn a vector for every item, with millions of parameters or a fine-tuned
-7B-parameter language model. Yet most items occur in only a handful of bundles, and what makes items go together is
+representation learning: recent models learn a vector for every item, with millions of trained parameters. Yet most items occur in only a handful of bundles, and what makes items go together is
 largely not about any single item: an outfit avoids repeating a category, a playlist returns to the same artists, and
 an item bundled with everything says little about any one bundle. We therefore learn bundle completion at the level of
 these shared relations. TRIAD scores a candidate by combining content similarity, a shared-label rule whose sign it
 learns per domain, and degree-discounted co-occurrence, with weights that adapt to how familiar the seeds are; its
 41,368 parameters belong to no item, and it is trained with each bundle removed from its own statistics, so it never
 learns from counts that contain the answer. This view also raises a question earlier evaluations left open: how strong
-are co-occurrence methods? Tuned, they match or beat CLHE, RaMen and DDBC. On seven fashion, music and
-e-commerce datasets TRIAD scores above all four recent models, including Bundle-MLLM, and is significantly ahead of
+are co-occurrence methods? Tuned, they match or beat CLHE and RaMen. On seven fashion, music and
+e-commerce datasets TRIAD scores above both, and is significantly ahead of
 the strongest tuned simple baseline on outfits and playlists. On small e-commerce sets it is level with that baseline:
 there much of any gain comes from how the benchmark catalogues are built, an effect we isolate and control for.
 \keywords{bundle completion \and bundle construction \and recommender systems \and evaluation}
@@ -49,16 +65,22 @@ given some items of a bundle (the \emph{seeds}), rank the catalogue so that the 
 (Fig.~\ref{fig:intro}a) \cite{clhe,ramen}. The query is a set of items, not a user, and the answer must fit the seeds
 as a group.
 
+% [hidden for now: DDBC / Bundle-MLLM] The field has approached this as a representation problem: learn a good vector for every item, pool the seeds, and
+% [hidden for now: DDBC / Bundle-MLLM] retrieve. CLHE \cite{clhe} fuses an ID embedding, multimodal features and a graph embedding per item; RaMen
+% [hidden for now: DDBC / Bundle-MLLM] \cite{ramen} adds an item--item graph and a hypergraph of latent intents; Bundle-MLLM \cite{bundlemllm} fine-tunes a
+% [hidden for now: DDBC / Bundle-MLLM] 7B-parameter language model to pick the missing item from ten candidates; DDBC \cite{ddbc} generates the missing items
+% [hidden for now: DDBC / Bundle-MLLM] by diffusion over learned item codes. Each learns part of what it knows about an item from
 The field has approached this as a representation problem: learn a good vector for every item, pool the seeds, and
 retrieve. CLHE \cite{clhe} fuses an ID embedding, multimodal features and a graph embedding per item; RaMen
-\cite{ramen} adds an item--item graph and a hypergraph of latent intents; Bundle-MLLM \cite{bundlemllm} fine-tunes a
-7B-parameter language model to pick the missing item from ten candidates; DDBC \cite{ddbc} generates the missing items
-by diffusion over learned item codes. Each learns part of what it knows about an item from
+\cite{ramen} adds an item--item graph and a hypergraph of latent intents. Each learns part of what it knows about an
+item from
 the bundles that item appears in (Fig.~\ref{fig:intro}b): on our datasets CLHE has up to 29\,M trained parameters and
 RaMen up to 67\,M, mostly rows of per-item tables. But bundle data are long-tailed. Most items occur in a handful of
 bundles and new ones in none, so most of those rows are fitted from very few examples. CLHE motivates its design by
-stating that methods built on co-occurrence cannot handle sparse data and cold-start items; none of the four papers
-includes a co-occurrence or neighbourhood baseline.
+% [hidden for now: DDBC / Bundle-MLLM] stating that methods built on co-occurrence cannot handle sparse data and cold-start items; none of the four papers
+% [hidden for now: DDBC / Bundle-MLLM] includes a co-occurrence or neighbourhood baseline.
+stating that methods built on co-occurrence cannot handle sparse data and cold-start items; neither paper includes a
+co-occurrence or neighbourhood baseline.
 
 We take the opposite view. Much of what makes items go together is not about any single item. An outfit takes one
 item from each of several categories and rarely two from the same one; a playlist does the reverse and returns to the
@@ -86,9 +108,12 @@ domain, and a co-occurrence term with learned degree discounts) are combined by 
 are. No parameter belongs to an item, so the model's size does not depend on the catalogue (41,368 parameters); it is
 trained without leakage, and its learned rules are readable: a shared category is penalized in outfits and a shared
 artist rewarded in playlists.
-\item \textbf{A matched evaluation} against CLHE, RaMen, Bundle-MLLM and DDBC, under our protocol and under theirs,
-with thirteen tuned simple baselines. Tuned simple methods match or beat CLHE, RaMen and DDBC, though not
-Bundle-MLLM. TRIAD scores above all four, and goes beyond the simple methods exactly where bundles
+% [hidden for now: DDBC / Bundle-MLLM] \item \textbf{A matched evaluation} against CLHE, RaMen, Bundle-MLLM and DDBC, under our protocol and under theirs,
+% [hidden for now: DDBC / Bundle-MLLM] with thirteen tuned simple baselines. Tuned simple methods match or beat CLHE, RaMen and DDBC, though not
+% [hidden for now: DDBC / Bundle-MLLM] Bundle-MLLM. TRIAD scores above all four, and goes beyond the simple methods exactly where bundles
+\item \textbf{A matched evaluation} against CLHE and RaMen on identical splits and features, with thirteen tuned
+simple baselines. Tuned simple methods match or beat both; TRIAD scores above both, and goes beyond the simple methods
+exactly where bundles
 carry rich structure, in outfits and playlists, while it is level with them on small e-commerce sets.
 \item \textbf{Two benchmark effects, isolated.} The catalogue effect above explains much of the gain on the small
 e-commerce sets, for TRIAD and for the simple baselines alike, and TRIAD's gain from it disappears when never-bundled
@@ -111,9 +136,12 @@ items: over labels, between item features, and over co-occurrence counts.}
 \paragraph{Bundle construction.} Bundle recommendation ranks existing bundles for a user \cite{bgcn,crosscbr}, and
 personalized bundle generation creates one for a user \cite{bgn,pog}. Bundle construction starts from a partial
 bundle and has no user. CLHE \cite{clhe}, RaMen \cite{ramen} and Caro \cite{caro} learn item representations from
-several views and score candidates against a pooled seed vector; Bundle-MLLM \cite{bundlemllm} and in-context
-prompting \cite{adabundle} use language models; DDBC \cite{ddbc} generates the missing set jointly. CLHE, RaMen,
-Bundle-MLLM and DDBC learn a representation per item, and their baselines are other neural models. Set models such as DeepSets
+% [hidden for now: DDBC / Bundle-MLLM] several views and score candidates against a pooled seed vector; Bundle-MLLM \cite{bundlemllm} and in-context
+% [hidden for now: DDBC / Bundle-MLLM] prompting \cite{adabundle} use language models; DDBC \cite{ddbc} generates the missing set jointly. CLHE, RaMen,
+% [hidden for now: DDBC / Bundle-MLLM] Bundle-MLLM and DDBC learn a representation per item, and their baselines are other neural models. Set models such as DeepSets
+several views and score candidates against a pooled seed vector, and language models have been prompted to build
+bundles \cite{adabundle}. CLHE and RaMen learn a representation per item, and their baselines are other neural
+models. Set models such as DeepSets
 \cite{deepsets} and the Set Transformer \cite{settransformer}, and basket completion with determinantal point
 processes \cite{gartrell2017}, also pool learned item embeddings; TRIAD pools fixed item statistics and learns functions of
 them shared by all items. Feature-based cold-start models \cite{lightfm,dropoutnet} map new items into a per-item latent space;
@@ -324,7 +352,7 @@ RaMen & -- & -- & .037 & .023$^\dagger$ & -- & -- & .109 & .188$^\dagger$\\
 TRIAD & \textbf{.374} & \textbf{.278} & \textbf{.052} & \textbf{.031} & \textbf{.184} & \textbf{.256} & \textbf{.167} & \textbf{.282}\\
 \emph{TRIAD w/o bonus} & .374 & .278 & .048 & .029 & .183 & .255 & .167 & .282\\
 \midrule
-Parameters & \multicolumn{2}{c}{7.3\,M / 11.6\,M} & \multicolumn{2}{c}{9.5\,M / 16.1\,M} & \multicolumn{2}{c}{29\,M / 56.5\,M} & \multicolumn{2}{c}{-- / 67\,M}\\
+Parameters & \multicolumn{2}{c}{7.2\,M / 11.6\,M} & \multicolumn{2}{c}{9.5\,M / 16.1\,M} & \multicolumn{2}{c}{29\,M / 56.5\,M} & \multicolumn{2}{c}{-- / 67\,M}\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -369,52 +397,52 @@ with the base rate the test calls for, from training data alone, and becomes a p
 from .028 and .029 to .007 and .013 at $P=n_0$ and to zero from $4n_0$, while TRIAD stays level with the best simple
 baseline ($-$.009 to +.014, none significant).
 
-\begin{table}[t]
-\centering
-\caption{Under other papers' protocols, without retraining. Top: HitRate@1 among 10 candidates (Bundle-MLLM's protocol);
-every question (POG) or 8,192 sampled ones (Spotify, at most 5 seeds shown, as Bundle-MLLM does), three seeds $\times$
-five draws. Bundle-MLLM and CLHE: published in Bundle-MLLM's paper (2,048 questions). Simple: the best simple baseline
-of Table~\ref{tab:tests} on the same questions. Bottom: F1 / Jaccard under DDBC's pool protocol; DDBC rerun from its
-released checkpoints on the same pools; simple: best on validation, without the prior (RP3$\beta$ on POG\_DENSE, the content+ItemKNN
-blend on Spotify); DDBC's best baseline as published (TIGER, BundleNAT at $k{=}30$). Paired tests TRIAD $-$ simple (HitRate@1, Holm over 4) and TRIAD $-$ DDBC (Holm over 8): all $p<.001$.}
-\label{tab:protocols}
-\setlength{\tabcolsep}{3pt}
-\scriptsize
-\begin{tabular}{lccccc}
-\toprule
-HitRate@1 & TRIAD & w/o bonus & Simple & Bundle-MLLM & CLHE\\
-\midrule
-POG\_DENSE & \textbf{.771} & .743 & .617 & .668 & .637\\
-POG & \textbf{.624} & .513 & .306 & .413 & .348\\
-Spotify\_sparse & \textbf{.814} & .816 & .641 & .796 & .723\\
-Spotify & \textbf{.841} & .841 & .759 & .824 & .757\\
-\bottomrule
-\end{tabular}
-
-\medskip
-\begin{tabular}{lccccc}
-\toprule
-F1 / Jaccard & TRIAD & w/o bonus & Simple & DDBC (rerun) & DDBC's best\\
-\midrule
-POG\_DENSE $k{=}4$ & \textbf{.483 / .392} & .482 / .391 & .452 / .360 & .138 / .099 & .213 / .157\\
-Spotify $k{=}30$ & \textbf{.625 / .482} & .625 / .482 & .540 / .402 & .279 / .176 & .153 / .090\\
-Spotify $k{=}60$ & \textbf{.643 / .495} & .643 / .495 & .560 / .413 & .285 / .178 & .129 / .076\\
-Spotify $k{=}90$ & \textbf{.651 / .501} & .651 / .501 & .561 / .412 & .278 / .171 & .123 / .070\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Bundle-MLLM's and DDBC's protocols.} Both evaluate on CLHE's split files with sampled candidates
-(Table~\ref{tab:protocols}). \emph{Bundle-MLLM} asks, for each (test bundle, held-out item), which of 10 candidates
-(the item and 9 random items from outside the bundle) belongs. Its checkpoints cannot be rerun with the inputs they
-were trained on: its prompts use English item titles that are not released, and it uses BLIP2 image features released
-only for POG. Against its published numbers TRIAD is ahead by .10--.21 on POG and POG\_DENSE, and by .017 and .018 on
-the two Spotify sets, about two standard errors of a 2,048-question estimate, so we do not claim the Spotify margins as
-significant. Here the tuned simple methods fall \emph{below} Bundle-MLLM, by .05--.16 on all four datasets, while
-TRIAD is ahead of them by .08--.32 on the same questions (all $p<.001$). \emph{DDBC} splits windows of our test
-bundles 1:1 into seeds and targets and ranks the targets among 99 random items each. Its checkpoints reproduce its
-published F1 on its own pools (.137--.278 against .139--.287). A tuned simple method reaches about three times its F1
-on POG\_DENSE and twice on Spotify, and TRIAD is higher still. The unseen-item bonus changes F1 by at most .001 here.
+% [hidden for now: DDBC / Bundle-MLLM] \begin{table}[t]
+% [hidden for now: DDBC / Bundle-MLLM] \centering
+% [hidden for now: DDBC / Bundle-MLLM] \caption{Under other papers' protocols, without retraining. Top: HitRate@1 among 10 candidates (Bundle-MLLM's protocol);
+% [hidden for now: DDBC / Bundle-MLLM] every question (POG) or 8,192 sampled ones (Spotify, at most 5 seeds shown, as Bundle-MLLM does), three seeds $\times$
+% [hidden for now: DDBC / Bundle-MLLM] five draws. Bundle-MLLM and CLHE: published in Bundle-MLLM's paper (2,048 questions). Simple: the best simple baseline
+% [hidden for now: DDBC / Bundle-MLLM] of Table~\ref{tab:tests} on the same questions. Bottom: F1 / Jaccard under DDBC's pool protocol; DDBC rerun from its
+% [hidden for now: DDBC / Bundle-MLLM] released checkpoints on the same pools; simple: best on validation, without the prior (RP3$\beta$ on POG\_DENSE, the content+ItemKNN
+% [hidden for now: DDBC / Bundle-MLLM] blend on Spotify); DDBC's best baseline as published (TIGER, BundleNAT at $k{=}30$). Paired tests TRIAD $-$ simple (HitRate@1, Holm over 4) and TRIAD $-$ DDBC (Holm over 8): all $p<.001$.}
+% [hidden for now: DDBC / Bundle-MLLM] \label{tab:protocols}
+% [hidden for now: DDBC / Bundle-MLLM] \setlength{\tabcolsep}{3pt}
+% [hidden for now: DDBC / Bundle-MLLM] \scriptsize
+% [hidden for now: DDBC / Bundle-MLLM] \begin{tabular}{lccccc}
+% [hidden for now: DDBC / Bundle-MLLM] \toprule
+% [hidden for now: DDBC / Bundle-MLLM] HitRate@1 & TRIAD & w/o bonus & Simple & Bundle-MLLM & CLHE\\
+% [hidden for now: DDBC / Bundle-MLLM] \midrule
+% [hidden for now: DDBC / Bundle-MLLM] POG\_DENSE & \textbf{.771} & .743 & .617 & .668 & .637\\
+% [hidden for now: DDBC / Bundle-MLLM] POG & \textbf{.624} & .513 & .306 & .413 & .348\\
+% [hidden for now: DDBC / Bundle-MLLM] Spotify\_sparse & \textbf{.814} & .816 & .641 & .796 & .723\\
+% [hidden for now: DDBC / Bundle-MLLM] Spotify & \textbf{.841} & .841 & .759 & .824 & .757\\
+% [hidden for now: DDBC / Bundle-MLLM] \bottomrule
+% [hidden for now: DDBC / Bundle-MLLM] \end{tabular}
+%
+% [hidden for now: DDBC / Bundle-MLLM] \medskip
+% [hidden for now: DDBC / Bundle-MLLM] \begin{tabular}{lccccc}
+% [hidden for now: DDBC / Bundle-MLLM] \toprule
+% [hidden for now: DDBC / Bundle-MLLM] F1 / Jaccard & TRIAD & w/o bonus & Simple & DDBC (rerun) & DDBC's best\\
+% [hidden for now: DDBC / Bundle-MLLM] \midrule
+% [hidden for now: DDBC / Bundle-MLLM] POG\_DENSE $k{=}4$ & \textbf{.483 / .392} & .482 / .391 & .452 / .360 & .138 / .099 & .213 / .157\\
+% [hidden for now: DDBC / Bundle-MLLM] Spotify $k{=}30$ & \textbf{.625 / .482} & .625 / .482 & .544 / .406 & .279 / .176 & .153 / .090\\
+% [hidden for now: DDBC / Bundle-MLLM] Spotify $k{=}60$ & \textbf{.643 / .495} & .643 / .495 & .562 / .416 & .285 / .178 & .129 / .076\\
+% [hidden for now: DDBC / Bundle-MLLM] Spotify $k{=}90$ & \textbf{.651 / .501} & .651 / .501 & .564 / .415 & .278 / .171 & .123 / .070\\
+% [hidden for now: DDBC / Bundle-MLLM] \bottomrule
+% [hidden for now: DDBC / Bundle-MLLM] \end{tabular}
+% [hidden for now: DDBC / Bundle-MLLM] \end{table}
+%
+% [hidden for now: DDBC / Bundle-MLLM] \paragraph{Bundle-MLLM's and DDBC's protocols.} Both evaluate on CLHE's split files with sampled candidates
+% [hidden for now: DDBC / Bundle-MLLM] (Table~\ref{tab:protocols}). \emph{Bundle-MLLM} asks, for each (test bundle, held-out item), which of 10 candidates
+% [hidden for now: DDBC / Bundle-MLLM] (the item and 9 random items from outside the bundle) belongs. Its checkpoints cannot be rerun with the inputs they
+% [hidden for now: DDBC / Bundle-MLLM] were trained on: its prompts use English item titles that are not released, and it uses BLIP2 image features released
+% [hidden for now: DDBC / Bundle-MLLM] only for POG. Against its published numbers TRIAD is ahead by .10--.21 on POG and POG\_DENSE, and by .017 and .018 on
+% [hidden for now: DDBC / Bundle-MLLM] the two Spotify sets, about two standard errors of a 2,048-question estimate, so we do not claim the Spotify margins as
+% [hidden for now: DDBC / Bundle-MLLM] significant. Here the tuned simple methods fall \emph{below} Bundle-MLLM, by .05--.16 on all four datasets, while
+% [hidden for now: DDBC / Bundle-MLLM] TRIAD is ahead of them by .08--.32 on the same questions (all $p<.001$). \emph{DDBC} splits windows of our test
+% [hidden for now: DDBC / Bundle-MLLM] bundles 1:1 into seeds and targets and ranks the targets among 99 random items each. Its checkpoints reproduce its
+% [hidden for now: DDBC / Bundle-MLLM] published F1 on its own pools (.137--.278 against .139--.287). A tuned simple method reaches about three times its F1
+% [hidden for now: DDBC / Bundle-MLLM] on POG\_DENSE and twice on Spotify, and TRIAD is higher still. The unseen-item bonus changes F1 by at most .001 here.
 
 \begin{table}[t]
 \centering
@@ -477,16 +505,20 @@ Spotify, where $\beta\approx-.3$ already favours popular candidates, it is .67--
 
 Bundle completion does not need a learned representation per item. Learning how to weigh relations that every item
 shares (content, labels and co-occurrence) with 41,368 parameters and training statistics that never contain the
-answer is enough to score above CLHE, RaMen, DDBC and Bundle-MLLM. Two lessons reach beyond TRIAD. First, simple
-methods deserve a place in every comparison: tuned, they match or beat three of these four models. Second, how a benchmark
+% [hidden for now: DDBC / Bundle-MLLM] answer is enough to score above CLHE, RaMen, DDBC and Bundle-MLLM. Two lessons reach beyond TRIAD. First, simple
+% [hidden for now: DDBC / Bundle-MLLM] methods deserve a place in every comparison: tuned, they match or beat three of these four models. Second, how a benchmark
+answer is enough to score above CLHE and RaMen. Two lessons reach beyond TRIAD. First, simple methods deserve a place
+in every comparison: tuned, they match or beat both models. Second, how a benchmark
 is built can look like modelling progress: on the small e-commerce sets, much of any gain comes from a
 catalogue that lists only bundled items. Where bundles carry real structure, in outfits and playlists, a model of shared
 relations goes clearly beyond the simple methods; where data are few and bundles short, it does not yet.
 
 \paragraph{Limitations.} On e-commerce TRIAD is not significantly ahead of a simple scorer with the same prior, and it
 falls behind with 100 or fewer bundles. The unseen-item bonus is a property of catalogues that hold only bundled
-items; we checked its removal with copied items, not on a real store catalogue. Bundle-MLLM could not be rerun, and
-RaMen on POG and Spotify and CLHE on full Spotify are published or single-seed numbers. Scoring is linear in the
+% [hidden for now: DDBC / Bundle-MLLM] items; we checked its removal with copied items, not on a real store catalogue. Bundle-MLLM could not be rerun, and
+% [hidden for now: DDBC / Bundle-MLLM] RaMen on POG and Spotify and CLHE on full Spotify are published or single-seed numbers.
+items; we checked its removal with copied items, not on a real store catalogue. RaMen on POG and Spotify and CLHE on
+full Spotify are published or single-seed numbers. Scoring is linear in the
 catalogue size, so millions of items would need a candidate stage. Starting training from the tuned simple scorer may
 close the small-data gap. Code will be released.
 
@@ -508,7 +540,7 @@ close the small-data gap. Code will be released.
 \bibitem{lightfm} Kula, M.: Metadata embeddings for user and item cold-start recommendations. In: CBRecSys Workshop at RecSys (2015)
 \bibitem{settransformer} Lee, J., Lee, Y., Kim, J., Kosiorek, A., Choi, S., Teh, Y.W.: Set Transformer: A framework for attention-based permutation-invariant neural networks. In: ICML (2019)
 \bibitem{blip} Li, J., Li, D., Xiong, C., Hoi, S.: BLIP: Bootstrapping language-image pre-training for unified vision-language understanding and generation. In: ICML (2022)
-\bibitem{bundlemllm} Liu, X., Wu, J., Tao, Z., Ma, Y., Wei, Y., Chua, T.S.: Fine-tuning multimodal large language models for product bundling. In: KDD (2025)
+% [hidden for now: DDBC / Bundle-MLLM] \bibitem{bundlemllm} Liu, X., Wu, J., Tao, Z., Ma, Y., Wei, Y., Chua, T.S.: Fine-tuning multimodal large language models for product bundling. In: KDD (2025)
 \bibitem{adamw} Loshchilov, I., Hutter, F.: Decoupled weight decay regularization. In: ICLR (2019)
 \bibitem{crosscbr} Ma, Y., He, Y., Zhang, A., Wang, X., Chua, T.S.: CrossCBR: Cross-view contrastive learning for bundle recommendation. In: KDD (2022)
 \bibitem{clhe} Ma, Y., Liu, X., Wei, Y., Tao, Z., Wang, X., Chua, T.S.: Leveraging multimodal features and item-level user feedback for bundle construction. In: WSDM (2024)
@@ -525,7 +557,7 @@ close the small-data gap. Code will be released.
 \bibitem{steck2019} Steck, H.: Embarrassingly shallow autoencoders for sparse data. In: WWW (2019)
 \bibitem{bundlerec} Sun, Z., Feng, K., Yang, J., Fang, H., Qu, X., Ong, Y.S., Liu, W.: Revisiting bundle recommendation for intent-aware product bundling. ACM TORS 2(3) (2024)
 \bibitem{adabundle} Sun, Z., Feng, K., Yang, J., Qu, X., Fang, H., Ong, Y.S., Liu, W.: Adaptive in-context learning with large language models for bundle generation. In: SIGIR (2024)
-\bibitem{ddbc} Tu, T., Li, A., Ma, Y., Xu, S., Liu, X., Ma, H., Pang, L., Chua, T.S.: Discrete diffusion for bundle construction. In: ICLR (2026)
+% [hidden for now: DDBC / Bundle-MLLM] \bibitem{ddbc} Tu, T., Li, A., Ma, Y., Xu, S., Liu, X., Ma, H., Pang, L., Chua, T.S.: Discrete diffusion for bundle construction. In: ICLR (2026)
 \bibitem{vasileva2018} Vasileva, M.I., Plummer, B.A., Dusad, K., Rajpal, S., Kumar, R., Forsyth, D.: Learning type-aware embeddings for fashion compatibility. In: ECCV (2018)
 \bibitem{dropoutnet} Volkovs, M., Yu, G., Poutanen, T.: DropoutNet: Addressing cold start in recommender systems. In: NeurIPS (2017)
 \bibitem{clap} Wu, Y., Chen, K., Zhang, T., Hui, Y., Berg-Kirkpatrick, T., Dubnov, S.: Large-scale contrastive language-audio pretraining with feature fusion and keyword-to-caption augmentation. In: ICASSP (2023)
