@@ -53,7 +53,7 @@ def score_batches(model,seeds,batch=32):
     model.eval()
     cache=model.cache()
     for start in range(0,len(seeds),batch):
-        values=model(seeds[start:start+batch],cache=cache).numpy()
+        values=model(seeds[start:start+batch],cache=cache).cpu().numpy()
         if not np.isfinite(values).all():
             raise RuntimeError('Nonfinite scores')
         yield values

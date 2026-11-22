@@ -1,11 +1,14 @@
 # The task, how CLHE, RaMen and the simple baselines solve it, and how TRIAD does
 
-This is a companion to the guide deck (`slides/dials_guide.pdf`). It defines the task precisely, then describes each
-compared method from its code, not from its abstract:
+This document defines the task precisely, then describes each compared method from its code, not from its abstract:
 - CLHE: `models/CLHE.py` in the authors' released code;
 - RaMen: `models/RaMen.py` in the authors' released code;
-- the simple baselines: our own implementation, run with the shared evaluation;
-- TRIAD: `triad/model.py` and `triad/train.py`.
+- the simple baselines: our own implementation, run with the shared evaluation. `triad/baselines.py` holds the five
+  that enter the comparison (ItemKNN, RP3β, EASE, the content + ItemKNN blend and the label + ItemKNN + content rule,
+  each optionally with a popularity prior; `python -m triad baselines`). Popularity, co-occurrence, GF-CF, SGFCF and
+  iALS (§2.3, §2.4, §2.8 to §2.10) were run in earlier experiments (branch `archive/original-triad` and the
+  experiment repository) and were never the best simple baseline on validation;
+- TRIAD: `triad/model.py` and `triad/train.py` (ARCHITECTURE.md).
 
 Every method is written in the same notation, so the differences are visible as differences in the formulas.
 
@@ -19,8 +22,8 @@ Every method is written in the same notation, so the differences are visible as 
 | $X \in \{0,1\}^{m\times n}$ | training bundles × items; $X_{bi}=1$ if item $i$ is in bundle $b$ |
 | $C = X^\top X$, zero diagonal | co-occurrence counts; $C_{ij}$ is the number of training bundles holding both $i$ and $j$ |
 | $f_i = \sum_b X_{bi}$ | training frequency of item $i$ |
-| $Z \in \mathbb{R}^{n\times d}$ | item features: BLIP image + text on POG, CLAP audio + text on Spotify, BLIP text embeddings of titles (computed by us) on Electronic/Food/Clothing, TF-IDF of the product hierarchy on Dunnhumby |
-| $\Gamma_l \in \{0,1\}^{n\times L_l}$ | item labels at level $l$: category on POG and e-commerce; artist and album on Spotify; sub-commodity on Dunnhumby |
+| $Z \in \mathbb{R}^{n\times d}$ | item features: BLIP image + text on POG, CLAP audio + text on Spotify, BLIP text embeddings of titles (computed by us) on Electronic/Food/Clothing |
+| $\Gamma_l \in \{0,1\}^{n\times L_l}$ | item labels at level $l$: category on POG and e-commerce; artist and album on Spotify |
 
 ### A query
 
@@ -380,7 +383,7 @@ $$
 - **Construction:** each part is divided by its largest absolute value in the query, and ItemKNN is fixed at its own
   validation setting.
 - **Setting searched:** $w\in\{0,.1,.2,.3,.5,.7,.9,1\}$.
-- **Where it was best:** on 6 of 8 datasets (Electronic, Food, Clothing, Dunnhumby, Spotify_sparse, Spotify). It is the
+- **Where it was best:** on 5 of 7 datasets (Electronic, Food, Clothing, Spotify_sparse, Spotify). It is the
   strongest simple baseline overall.
 - **What it can't do:** one $w$ per dataset can't be right for both a query whose seeds are warm and one whose seeds are
   new.
@@ -515,29 +518,27 @@ The table shows the problem TRIAD is built for:
 
 ### 2.13 How the simple baselines did
 
-Test NDCG@20 on clean queries, each method at its validation setting:
+Test NDCG@20 on clean queries, each method at its validation setting, **without** the popularity prior and without
+the label rules (those enter in the final comparison, `TRIAD_DESIGN.md` §7, where the best simple baseline gets both):
 
 | Dataset | Pop. | Co-occ. | ItemKNN | RP3β | EASE | GF-CF | SGFCF | iALS | Blend | TRIAD |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Electronic | .026 | .231 | .248 | .255 | .254 | .254 | .246 | .236 | **.302** | .335 |
-| Food | .016 | .249 | .262 | .274 | .267 | .268 | .272 | .250 | **.445** | .474 |
-| Clothing | .003 | .177 | .193 | .193 | .201 | .192 | .191 | .175 | **.359** | .439 |
-| Dunnhumby | .057 | .094 | .102 | .103 | .104 | .080 | .104 | .081 | **.104** | .102 |
+| Electronic | .026 | .231 | .248 | .255 | .254 | .254 | .246 | .236 | **.302** | .341 |
+| Food | .016 | .249 | .262 | .274 | .267 | .268 | .272 | .250 | **.445** | .488 |
+| Clothing | .003 | .177 | .193 | .193 | .201 | .192 | .191 | .175 | **.359** | .451 |
 | POG_DENSE | .156 | .240 | .208 | **.241** | .228 | .230 | .237 | .191 | .208 | .280 |
-| POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0306 |
-| Spotify_sparse | .006 | .139 | .148 | .149 | n/a | .099 | .138 | .130 | **.153** | .256 |
+| POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0308 |
+| Spotify_sparse | .006 | .139 | .148 | .149 | n/a | .099 | .138 | .130 | **.153** | .257 |
 | Spotify | .022 | .160 | .219 | .210 | n/a | .173 | .195 | .210 | **.223** | .282 |
 
-- **Bold** marks the best simple baseline by validation, the one TRIAD is tested against.
+- **Bold** marks the best of these by validation.
 - "n/a" means EASE was not run (more than 40,000 items).
-- On Dunnhumby the blend, SGFCF and EASE all round to .104.
 - **Content matters most on e-commerce.** Adding BLIP title content lifts ItemKNN by .05 to .18. There the bundles are small and the
   catalogue is mostly cold.
 - **On POG the best methods are the ones that keep popularity** (RP3β at β = 0, co-occurrence, EASE). In outfits,
   popular pieces are often right.
-- **TRIAD's lead over the best simple baseline:**
-  - largest where history is thin and labels carry signal: Spotify_sparse, +.104;
-  - none on warm grocery baskets (Dunnhumby, −.003, not significant).
+- **With the popularity prior and the label rules**, the best simple baseline rises to .312, .460, .427, .241, .023,
+  .209 and .247 (in table order), and TRIAD stays significantly ahead on all seven datasets (`TRIAD_DESIGN.md` §7).
 
 ### 2.14 What the family can't do, and what TRIAD changes
 
@@ -713,8 +714,9 @@ s(c\mid S) = w_C(S)\,C(S,c) + \sum_l w_l(S)\,L_l(S,c) + w_G(S)\,G(S,c).
 $$
 
 **Content:** $C(S,c) = \varphi(S)^\top\psi(c)$.
-- $\psi$ is a rank-64 map of the candidate's features $z_c$ and its *partner history* $h_c$ (the co-occurrence-weighted
-  mean feature of its training partners).
+- $\psi$ is a full-rank ($128 \times 128$) map of the candidate's features $z_c$ and its *partner history* $h_c$ (the
+  co-occurrence-weighted mean feature of its training partners). It starts as the cosine of the seed mean with the
+  candidate.
 - $\varphi(S)$ is the same kind of map, averaged over the seeds.
 - The maps are shared by all items. Nothing is stored per item, so a new item is scored from its features on day one.
 
@@ -748,8 +750,12 @@ $$
 w(S) = \mathrm{softplus}\big(\mathrm{MLP}(\log|S|,\ \text{mean seed }\log f,\ \text{share of seeds never seen})\big).
 $$
 
-It sets one weight per term for each query. On Spotify_sparse the graph-to-content weight falls from 0.43 to 0.16 as
-the share of unseen seeds rises.
+It sets one weight per term for each query, after each term is divided by its largest absolute value over the
+catalogue. On e-commerce and Spotify it raises content's weight by 36% to 82% for queries whose seeds were never
+bundled (`TRIAD_DESIGN.md` §3.8).
+
+**Start:** before training, TRIAD is the simple scorer: cosine content, cosine-normalized counts ($\alpha=\beta=\tfrac12$),
+no label rule, no prior, equal weights. Training moves each part away from it only where the data supports it.
 
 **Training** (`triad/train.py`):
 - **Self-supervised queries:** each step hides a random part of 32 training bundles (half, or a uniform cut) and scores
@@ -757,8 +763,8 @@ the share of unseen seeds rises.
   no negative sampling.
 - **Leave-one-out:** every count, degree, frequency and partner history is computed with the bundle's own contribution
   removed, so the model can't read its answer from its own counts.
-- **Early stopping:** on validation NDCG@20.
-- **Size:** 41.4k trained parameters (41.5k on Spotify_sparse), none of them per item.
+- **Early stopping:** on validation NDCG@20; epoch 0 (the untrained simple scorer) can be selected.
+- **Size:** 74.1k trained parameters (74.2k on the Spotify sets), none of them per item.
 
 ## 6. Side by side
 
@@ -771,8 +777,8 @@ the share of unseen seeds rises.
 | Labels | label rules (positive only) | not used | not used | shared-label score with a learned sign |
 | Cold item | content or label only | ID row never trained; content copied into the CF view | same | content and label terms, no per-item state |
 | Per-item parameters | none | $2\times64$ | $4\times64$ | none |
-| Trained parameters (POG) | 0 to a few | 9.48M | 16.1M | 41.4k |
-| Training (POG, 4 CPU threads) | seconds to minutes | 85 min | about 71 min | 12–15 min |
+| Trained parameters (POG) | 0 to a few | 9.48M | 16.1M | 74.1k |
+| Training (POG, CPU) | seconds to minutes | 85 min | about 71 min | about an hour |
 | Leakage control | statistics from training only | n/a | n/a | leave-one-out |
 
 ## 7. What the comparison shows
@@ -781,21 +787,20 @@ Test NDCG@20, on identical splits and features, with each method run from its ow
 
 | Dataset | CLHE | RaMen | TRIAD | Δ vs best neural |
 |---|---|---|---|---|
-| Electronic | .259 | .256 | **.335** | +.076 |
-| Food | .271 | .265 | **.474** | +.203 |
-| Clothing | .196 | .190 | **.439** | +.243 |
-| POG_DENSE | .248 | | **.278** | +.031 |
-| POG | .0172 | | **.0306** | +.013 |
-| Spotify_sparse | .115 | | **.256** | +.141 |
+| Electronic | .259 | .256 | **.341** | +.082 |
+| Food | .271 | .265 | **.488** | +.217 |
+| Clothing | .196 | .190 | **.451** | +.255 |
+| POG_DENSE | .248 | | **.280** | +.032 |
+| POG | .0172 | | **.0308** | +.014 |
+| Spotify_sparse | .115 | | **.257** | +.142 |
 
-- All 18 tests have $p=.002$ (Holm over 20). RaMen was rerun on the three e-commerce datasets only.
+- The paired tests were run against the original TRIAD (.335, .474, .439, .278, .0306, .256): all 18 had $p=.002$
+  (Holm over 20). TRIAD now scores higher than the original on every row. RaMen was rerun on the three e-commerce
+  datasets only.
 - **Where TRIAD gains most:** on items and queries without history, because content and labels are separate terms
   that the gate can rely on.
-- **It isn't just the gate:** with the per-query gate replaced by constant weights, most of the gain remains. The
-  learned terms carry it.
-- **Where it doesn't win:**
-  - Warm grocery baskets (Dunnhumby), where the content + ItemKNN blend ties it.
-  - The personalized Dunnhumby task, where every method gains the same amount from household repurchase counts.
+- **It isn't just the gate:** with the per-query gate fixed at its average weights, TRIAD loses 0 to 13% of its
+  validation NDCG@20; the learned terms carry most of the gain (`TRIAD_DESIGN.md` §3).
 
 ## Sources
 

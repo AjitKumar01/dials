@@ -1,5 +1,6 @@
-"""python -m triad train --dataset pog_dense --seed 0
+"""python -m triad train --dataset pog_dense --seed 0 [--device cuda]
 python -m triad test [--datasets pog_dense pog ...]
+python -m triad baselines [--datasets electronic ...]
 
 train: one seed into runs/<dataset>/seed<s>/ (model.pt, selected.json, history.json); resumes if interrupted.
 test: scores the selected model of seeds 0, 1, 2 on the test queries once (runs/<dataset>/seed<s>/test.json) and
@@ -13,7 +14,7 @@ import numpy as np
 import torch
 from . import data
 from .evaluate import evaluate,subset
-from .train import fit,load,log,write_json
+from .train import config_for,fit,load,log,write_json
 
 # Where runs and caches live (relative to the working directory), and the three training seeds.
 RUNS=Path('runs')
@@ -22,10 +23,12 @@ SEEDS=(0,1,2)
 
 
 def train(args):
-    """Train one dataset and seed (deterministic algorithms; thread count from --threads)."""
+    """Train one dataset and seed (thread count from --threads; deterministic algorithms on the CPU)."""
     torch.set_num_threads(args.threads)
-    torch.use_deterministic_algorithms(True)
-    fit(data.load(args.dataset,CACHE),args.seed,RUNS/args.dataset/f'seed{args.seed}',CACHE)
+    if args.device=='cpu':
+        torch.use_deterministic_algorithms(True)
+    fit(data.load(args.dataset,CACHE),args.seed,RUNS/args.dataset/f'seed{args.seed}',CACHE,
+        config=config_for(args.dataset),device=args.device)
     log(f'{args.dataset} seed {args.seed} COMPLETE')
 
 
@@ -72,6 +75,19 @@ def test(args):
         log(f'{name} clean test R20={summary[name]["clean"]["recall20"]:.4f} N20={summary[name]["clean"]["ndcg20"]:.4f}')
 
 
+def baselines(args):
+    """Tune and test the simple baselines (triad.baselines) on each dataset; writes runs/baselines/<dataset>.json."""
+    from .baselines import run
+    for name in args.datasets:
+        path=RUNS/'baselines'/f'{name}.json'
+        if path.exists():
+            log(f'{name}: exists, skipped')
+            continue
+        report=run(data.load(name,CACHE),log=log)
+        write_json(path,report)
+        log(f'{name} best simple {report["best_simple"]["method"]}: clean test N20={report["best_simple"]["test"]["ndcg20"]:.4f}')
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
     sub=p.add_subparsers(required=True)
@@ -82,10 +98,16 @@ if __name__=='__main__':
     t.add_argument('--dataset',required=True,choices=data.DATASETS)
     t.add_argument('--seed',type=int,required=True)
     t.add_argument('--threads',type=int,default=1)
+    t.add_argument('--device',default='cpu',help='cpu, or cuda for a GPU')
 
     # python -m triad test [--datasets NAME ...]
     t=sub.add_parser('test')
     t.set_defaults(run=test)
+    t.add_argument('--datasets',nargs='+',default=data.DATASETS,choices=data.DATASETS)
+
+    # python -m triad baselines [--datasets NAME ...]
+    t=sub.add_parser('baselines')
+    t.set_defaults(run=baselines)
     t.add_argument('--datasets',nargs='+',default=data.DATASETS,choices=data.DATASETS)
 
     args=p.parse_args()

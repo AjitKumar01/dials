@@ -1,4 +1,4 @@
-"""Checks that later changes keep TRIAD as frozen.
+"""Checks that later changes keep TRIAD as it is.
 
 PYTHONPATH=. python -m pytest tests -q
 
@@ -6,7 +6,7 @@ leave-one-out   training-mode content, label, graph and gate scores of a bundle 
                 built without that bundle (synthetic catalogue, no data needed). The label term reads only item labels,
                 which do not depend on bundles, so it must be unchanged.
 metrics         top_items against a brute-force sort, with ties and seeds.
-golden          the frozen Electronic seed-0 model reproduces tests/golden (needs the data and runs/).
+golden          the Electronic seed-0 model reproduces tests/golden (needs the data and runs/).
 resume          a run interrupted after epoch 2 and resumed equals an uninterrupted run (needs the Electronic data).
 """
 import triad  # pins BLAS threads before numpy loads
@@ -36,7 +36,7 @@ def synthetic(seed=0,n=60,bundles=82):
 
 
 def model_from(train,features,levels,state=None):
-    model=TRIAD(features,levels,train,rank=8,hidden=8)
+    model=TRIAD(features,levels,train,hidden=8)
     if state is None:
         torch.manual_seed(1)
         with torch.no_grad():
@@ -83,7 +83,7 @@ def electronic():
 
 @torch.inference_mode()
 def test_golden_scores():
-    if not GOLDEN.exists() or not (ROOT/'runs'/'electronic'/'seed0'/'model.pt').exists():pytest.skip('golden file or frozen run missing')
+    if not GOLDEN.exists() or not (ROOT/'runs'/'electronic'/'seed0'/'model.pt').exists():pytest.skip('golden file or run missing')
     ds=electronic();golden=np.load(GOLDEN);torch.set_num_threads(4)
     model=T.load(ds,ROOT/'runs'/'electronic'/'seed0',ROOT/'cache')
     rows=ds.test_pairs[:len(golden['top20'])];values=scores(model,[s for s,_ in rows])
@@ -109,3 +109,21 @@ def test_resume(tmp_path):
     assert a==b
     sa,sb=(torch.load(tmp_path/r/'model.pt',weights_only=True) for r in ('straight','resumed'))
     assert all(torch.equal(sa[k],sb[k]) for k in sa)
+
+
+@torch.no_grad()
+def test_start_is_simple_scorer():
+    """Untrained, s = maxabs(10 xbar'x_c) + maxabs(log(1 + sum_s N_sc / sqrt(deg_s deg_c))): no label term, no prior."""
+    train,features,levels=synthetic();model=TRIAD(features,levels,train,hidden=8).eval()
+    seeds=[torch.as_tensor(sorted(set(b[:2]))) for b in train[:20]]
+    x=torch.nn.functional.normalize(torch.as_tensor(features),dim=1)
+    content=torch.stack([10*x[s].mean(0)@x.T for s in seeds])
+    deg=model.history_mass.clamp_min(1);N=torch.zeros(model.n,model.n)
+    for b in train:
+        b=sorted(set(b))
+        for i in b:
+            for j in b:
+                if i!=j:N[i,j]+=1
+    graph=torch.stack([(N[s]/(deg[s][:,None]*deg[None,:]).sqrt()).sum(0).log1p() for s in seeds])
+    scale=lambda v:v/v.abs().amax(1,keepdim=True).clamp_min(1e-6)
+    assert torch.allclose(model(seeds,cache=model.cache()),scale(content)+scale(graph),atol=1e-5)

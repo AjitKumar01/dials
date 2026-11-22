@@ -1,8 +1,7 @@
-"""Golden scores: the frozen Electronic seed-0 model on the first 64 test queries, at 512 fixed items, plus top-20 lists.
+"""Golden scores: the Electronic seed-0 model on the first 64 test queries, at 512 fixed items, plus top-20 lists.
 
-Written from the frozen run runs/electronic/seed0 (the model behind the paper's numbers: Electronic test R@20 .467,
-NDCG@20 .335 over seeds 0-2); regenerated 2026-11-19 after that run was retrained. tests/test_triad.py checks every
-later version against it.
+Written from the run runs/electronic/seed0 (python -m triad train --dataset electronic --seed 0; Electronic clean
+test R@20 .467, NDCG@20 .341 over seeds 0-2). tests/test_triad.py checks every later version against it.
 PYTHONPATH=. python tests/golden.py
 """
 import triad  # pins BLAS threads before numpy loads
@@ -25,10 +24,10 @@ def compute(model,ds):
     return dict(items=items,scores=values[:,items],top20=np.stack([top_items(v,s,20) for v,(s,_) in zip(values,rows)]))
 
 
-def frozen():
+def run0():
     ds=data.load('electronic');return load(ds,Path('runs')/'electronic'/'seed0','cache'),ds
 
 
 if __name__=='__main__':
     torch.set_num_threads(4);torch.use_deterministic_algorithms(True)
-    PATH.parent.mkdir(exist_ok=True);np.savez(PATH,**compute(*frozen()));print('wrote',PATH)
+    PATH.parent.mkdir(exist_ok=True);np.savez(PATH,**compute(*run0()));print('wrote',PATH)

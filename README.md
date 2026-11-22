@@ -3,48 +3,43 @@
 A small neural model for bundle completion. Given some items of a bundle (the seeds), it ranks the whole catalogue
 for the missing ones. It combines three relations between the seeds and a candidate (content, labels and
 co-occurrence), weighted per query by a gate. It has no per-item embeddings, so its size does not grow with the
-catalogue.
+catalogue: 74,136 trained parameters (74,234 with two label levels).
 
-One configuration, unchanged across eight datasets, with 41,368 trained parameters (41,466 with two label levels).
+**It starts as the simple scorer.** Before training, TRIAD is an equal blend of content cosine and cosine-normalized
+co-occurrence. Every learned part (the content matrices, the count exponents, the label rule, the popularity prior and
+the gate) starts at that simple choice, and training moves it only where the data supports it.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) explains the model from first principles.
-- [FORWARD_PASS.md](FORWARD_PASS.md) follows one real Electronic bundle through `TRIAD.forward`, with the code and the trained model's actual numbers at every step.
-- [SPARSE_GRAPH.md](SPARSE_GRAPH.md) explains how the graph term is computed from sparse storage: the goal of each step, then how the code does it, on a 5-item toy example.
-- [PIPELINE.md](PIPELINE.md) follows one dataset through the code, from raw files to test scores, naming every function and variable.
-- [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes CLHE, RaMen, the simple baselines and TRIAD in one notation.
-- [RESULTS.md](RESULTS.md) has every result: against simple and neural baselines, under DDBC's protocol, the
-  ablations, and model sizes.
+- [TRIAD_DESIGN.md](TRIAD_DESIGN.md) builds the model step by step from the simple scorer and reads what each part
+  learned, with the evidence in the trained parameters.
+- [ARCHITECTURE.md](ARCHITECTURE.md) is the technical description: every component, its shapes and starting values,
+  training, leakage control, evaluation and cost.
+- [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes the simple baselines, CLHE, RaMen and
+  TRIAD in one notation.
+- [RESULTS.md](RESULTS.md) has the results and where every number comes from.
 
 ## Model
 
-For seeds S and candidate item c,
+For seeds S and candidate item c, with each term divided by its largest absolute value over the catalogue (T^):
 
-    s(c | S) = w_C(S) C(S,c) + Σ_l w_l(S) L_l(S,c) + w_G(S) G(S,c)
+    s(c | S) = w_C(S) C^(S,c) + Σ_l w_l(S) L_l^(S,c) + w_G(S) G^(S,c)
 
-- **Content** `C = φ(S)ᵀψ(c)`. φ averages over the seeds and ψ maps the candidate, each a rank-64 map of an item's
-  encoded features and its partner history, the co-occurrence-weighted mean feature of its partners.
-- **Labels**, one term per attribute level (category; artist and album). With `m` the number of seeds that share the
-  candidate's label value g(c), and `|g(c)|` the number of items with that value:
-
-      L_l(S,c) = δ_l(m, |S|, |g(c)|)·[m > 0]
-
-  δ_l is a small MLP, and its sign is learned. The model learns to avoid the seeds' category on fashion and to prefer
-  the same artist on music.
-- **Graph** `G = θ·log(1 + Σ_{s∈S} n_sc deg_s^-α deg_c^-β) + ρ(f_c)`. These are damped co-occurrence counts with
-  learned degree exponents, plus a learned curve ρ of the candidate's training frequency.
-- **Gate** `w(S) = softplus(MLP(log|S|, mean seed log-frequency, share of unseen seeds))`.
+- **Content** `C = z̄ᵀ M_zz z_c + z̄ᵀ M_zh h_c + h̄ᵀ M_hz z_c + h̄ᵀ M_hh h_c`, with learned 128 × 128 matrices
+  `M = Aᵀ B`, refined features `z = normalize(x + MLP(x))` and partner histories `h` (the average feature of an item's
+  past bundle partners). It starts as `10 x̄ᵀ x_c`: cosine.
+- **Labels**, one term per attribute level (category; artist and album): `L_l = δ_l(log(1+m), log|S|, log(1+n_g))`
+  when `m > 0` seeds share the candidate's label, a small MLP whose sign is learned. It starts at 0.
+- **Graph** `G = θ log(1 + Σ_s N_sc deg_s^-α deg_c^-β) + ρ(log(1 + f_c))`: damped co-occurrence counts with learned
+  exponents (starting at ½, cosine) and a learned popularity prior ρ (starting at 0).
+- **Gate** `w(S) = softplus(MLP(log|S|, mean seed log-frequency, share of never-bundled seeds))`, starting at 1.
 
 **Leakage-free training.** A training bundle is scored with its own contribution removed from every count, degree,
-frequency and partner history (leave-one-out). The label term reads only item labels, which no bundle changes.
+frequency and partner history (leave-one-out).
 
-**Training.** Each step takes 32 training bundles and hides a random part of each. A full-catalogue softmax loss then
-makes every hidden item compete with all items outside its bundle. AdamW is used, at 1e-2 for the small relation
-parameters and 1e-3 for the content maps, with weight decay 1e-3. The epoch is chosen on validation NDCG@20
-(patience 6, at most 100 epochs). Configuration: `triad/train.py:CONFIG`.
-
-**Earlier version.** TRIAD was called DIALS while it also had a low-rank label-to-label part with cross-fitted label
-factors. Retrained without that part, test NDCG@20 changed by at most .004 on every dataset (ARCHITECTURE.md §15),
-so it was removed.
+**Training.** Each step takes 32 training bundles and hides a random part of each; a full-catalogue softmax loss makes
+every hidden item compete with all items outside its bundle. AdamW at 1e-2 for the small relation parameters and 1e-3
+for the content maps and encoder (both halved on the three small e-commerce sets), weight decay 1e-3. The epoch is
+chosen on validation NDCG@20 (patience 6, at most 100 epochs), and epoch 0, the untrained simple scorer, can be chosen.
+Configuration: `triad/train.py` (`CONFIG`, `config_for`).
 
 ## Results
 
@@ -54,20 +49,17 @@ e-commerce splits have no such overlap.
 
 | Dataset | Test queries (clean) | Recall@20 clean | NDCG@20 clean | NDCG@20 all | Inference ms/query |
 |---|---:|---:|---:|---:|---:|
-| Electronic | 346 | .4669 | .3345 | .3345 | 0.18 |
-| Food | 353 | .6178 | .4738 | .4738 | 0.16 |
-| Clothing | 371 | .5927 | .4388 | .4388 | 0.17 |
-| Dunnhumby | 5,707 | .1481 | .1012 | .1012 | 0.57 |
-| POG_DENSE | 5,938 (5,547) | .3742 | .2781 | .3063 | 0.41 |
-| POG | 4,000 (3,995) | .0524 | .0306 | .0314 | 0.51 |
-| Spotify_sparse | 2,498 (2,497) | .1837 | .2562 | .2565 | 2.5 |
-| Spotify | 4,000 (3,995) | .1674 | .2823 | .2830 | 5.4 |
+| Electronic | 346 | .4665 | .3413 | .3413 | 0.09 |
+| Food | 353 | .6211 | .4881 | .4881 | 0.09 |
+| Clothing | 371 | .5990 | .4509 | .4509 | 0.10 |
+| POG_DENSE | 5,938 (5,547) | .3742 | .2798 | .3084 | 0.42 |
+| POG | 4,000 (3,995) | .0532 | .0308 | .0315 | 0.56 |
+| Spotify_sparse | 2,498 (2,497) | .1845 | .2565 | .2568 | 2.7 |
+| Spotify | 4,000 (3,995) | .1682 | .2824 | .2831 | 3.6 |
 
-`python -m triad test` writes these numbers to `runs/summary.json`. Inference time is the test pass on 4 CPU threads
-divided by the number of queries, after a one-time setup of the pair counts. Item features are the released ones
-(BLIP image and text on POG, CLAP audio and text on Spotify, the files CLHE uses); where nothing is released, BLIP text
-embeddings of the item titles that we compute (e-commerce) and TF-IDF of the product text (Dunnhumby). RESULTS.md
-gives the comparisons with baselines.
+`python -m triad test` writes these numbers to `runs/summary.json`. TRIAD is significantly ahead of the best
+validation-tuned simple baseline on all seven datasets (RESULTS.md). Inference time is the test pass on 4 CPU threads
+divided by the number of queries, after a one-time setup of the pair counts.
 
 ## Data
 
@@ -78,7 +70,7 @@ Data is not part of the repository. By default it is read from the repository's 
     <root>/BundleRec/dataset/{electronic,food,clothing}/                 bundle_item.csv, item_titles.csv, item_categories.csv
 
 - **POG and Spotify:** the supplied train, validation and test files are used unmodified. The released item features
-  (POG: BLIP image and text; Spotify: CLAP audio and text; only the released files) are projected to 128 dimensions by a
+  (POG: BLIP image and text; Spotify: CLAP audio and text; the files CLHE uses) are projected to 128 dimensions by a
   truncated SVD.
 - **Electronic, Food and Clothing:** duplicate bundles are removed, then a seeded 70/10/20 split is made, with half of
   each held-out bundle hidden. No features are released, so each item title is embedded with BLIP's text encoder
@@ -94,19 +86,33 @@ Details: `triad/data.py`.
       for s in 0 1 2; do .venv/bin/python -m triad train --dataset $d --seed $s; done
     done
     .venv/bin/python -m triad test
+    .venv/bin/python -m triad baselines
 
-`train` writes `runs/<dataset>/seed<s>/` (`model.pt`, `selected.json`, `history.json`) and resumes if interrupted.
-Seeds can run in parallel. One seed takes seconds on the e-commerce data, about an hour on POG and a few hours on
-Spotify on one CPU thread. `test` scores each selected model on the test queries once.
+- `train` writes `runs/<dataset>/seed<s>/` (`model.pt`, `selected.json`, `history.json`) and resumes if interrupted.
+  Seeds can run in parallel. One seed takes seconds on the e-commerce data and about an hour on POG on the CPU; use
+  `--device cuda` for the Spotify sets.
+- `test` scores each selected model on the test queries once.
+- `baselines` tunes the simple baselines on validation and scores test once (`runs/baselines/<dataset>.json`).
+- The analyses behind TRIAD_DESIGN.md and RESULTS.md: `python -m analysis.readings`, `analysis.extra`,
+  `analysis.taste` and `analysis.tables` (outputs in `results/` and `figures/design/`).
 
-**Reproducibility.** Training is deterministic: fixed seeds, `torch.use_deterministic_algorithms`, and one thread by
-default. The truncated SVDs behind the features are bit-reproducible only at a fixed BLAS thread count, so importing
-`triad` pins BLAS to one thread. Import it before numpy, or `cache/` may differ in the last digits.
+**Reproducibility.** CPU training is deterministic: fixed seeds, `torch.use_deterministic_algorithms`, and one thread
+by default. The truncated SVDs behind the features are bit-reproducible only at a fixed BLAS thread count, so
+importing `triad` pins BLAS to one thread. Import it before numpy, or `cache/` may differ in the last digits.
+`PYTHONPATH=. python -m pytest tests -q` checks leave-one-out, the metrics, golden scores, resuming, and that the
+untrained model is the simple scorer.
 
 ## Layout
 
-    triad/data.py       datasets: splits, features, labels, clean test queries
-    triad/model.py      the model and the pair counts
-    triad/train.py      configuration, loss, training loop, checkpoint loading
-    triad/evaluate.py   full-catalogue Recall@20 / NDCG@20
-    triad/__main__.py   train and test commands
+    triad/data.py         datasets: splits, features, labels, clean test queries
+    triad/model.py        the model and the pair counts
+    triad/train.py        configuration, loss, training loop, checkpoint loading
+    triad/evaluate.py     full-catalogue Recall@20 / NDCG@20
+    triad/baselines.py    the simple baselines and their tuning
+    triad/statistics.py   paired tests and Holm correction
+    triad/__main__.py     train, test and baselines commands
+    analysis/             parameter readings, knock-outs, results tables and figures
+    paper/                the paper (its method and results sections still describe the original TRIAD; being updated)
+    tests/                checks of the model, training and metrics
+
+Earlier versions of the model, their documents and experiments are on the branch `archive/original-triad`.

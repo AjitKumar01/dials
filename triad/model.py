@@ -4,11 +4,11 @@ Read this file next to ARCHITECTURE.md; section numbers (§) below refer to it.
 
 Given seed items S, every catalogue item c is scored as (§5)
 
-    s(c | S) = w_C(S) C(S,c) + sum_l w_l(S) L_l(S,c) + w_G(S) G(S,c)
+    s(c | S) = w_C(S) C^(S,c) + sum_l w_l(S) L_l^(S,c) + w_G(S) G^(S,c),   T^ = T / max_c' |T(S,c')|
 
-Content (§6)  C = phi(S)^T psi(c). phi averages over the seeds and psi maps the candidate, each a rank-64 map of the
-              item's encoded features z and its partner history h (the co-occurrence-weighted mean feature of its
-              partners).
+Content (§6)  C = phi(S)^T psi(c). phi averages over the seeds and psi maps the candidate, each a full-rank (d x d)
+              map of the item's refined features z and its partner history h (the co-occurrence-weighted mean feature
+              of its partners). It starts as 10 x the cosine of the seed mean with the candidate.
 Labels (§7)   for each attribute level l (category; or artist and album), with t(S) the seeds' label counts and g(c)
               the candidate's label:
                   L_l = delta_l(t_g(c)(S), |S|, size of g(c)) [t_g(c)(S) > 0]
@@ -16,6 +16,11 @@ Labels (§7)   for each attribute level l (category; or artist and album), with 
 Graph (§8)    G = theta log(1 + sum_{s in S} n_sc deg_s^-alpha deg_c^-beta) + rho(f_c): damped co-occurrence counts
               with learned degree exponents, plus a learned curve rho of the candidate's training frequency f_c.
 Gate (§9)     w(S) = softplus(MLP(log|S|, mean seed log-frequency, share of seeds never seen in training)).
+Scaling (§5)  before the gate, each term is divided by its largest absolute value over the catalogue for that query,
+              so the gate mixes terms of the same scale.
+
+Start (§5). The model starts as a simple scorer: content = 10 x cosine (A_z = B_z = sqrt(10) I), cosine-normalized
+counts (alpha = beta = 1/2), no label rule and no prior (the last layers of delta_l and rho are zero), equal weights.
 
 Leakage-free training (§11). A training bundle is scored with its own contribution removed from every count, degree,
 frequency and partner history (leave-one-out).
@@ -39,7 +44,7 @@ How the code maps to the symbols of ARCHITECTURE.md §4:
     gate                                    MLP giving the term weights w(S)
 
 Shapes used in comments: q = number of queries in a batch, n = catalogue size, d = feature dimension (128),
-r = content rank (64), K = number of label values at a level.
+K = number of label values at a level.
 """
 import math
 import numpy as np
@@ -108,14 +113,13 @@ class TRIAD(nn.Module):
         features: n x d item features X.
         levels: list of label arrays, one per level, each of length n (e.g. [category] or [artist, album]).
         train: the training bundles; N, deg, f and H are built from them here (§4).
-        rank: r, the rank of the content maps (64).
         hidden: width of the content encoder MLP (32).
 
     Everything derived from the training split is rebuilt on construction and stored as non-persistent buffers, so a
     checkpoint holds the trained parameters only.
     """
 
-    def __init__(self,features,levels,train,rank=64,hidden=32):
+    def __init__(self,features,levels,train,hidden=32):
         super().__init__()
 
         # ---- fixed data (❄️) ---------------------------------------------------------------------------------------
@@ -158,6 +162,9 @@ class TRIAD(nn.Module):
 
             # delta_l takes (log(1+m), log|S|, log(1+n_g)).
             self.same_label.append(curve(3))
+            # Last layer at zero: delta_l = 0 at the start, so an untrained label rule adds nothing.
+            nn.init.zeros_(self.same_label[-1][-1].weight)
+            nn.init.zeros_(self.same_label[-1][-1].bias)
 
         # ---- content term (§6) -----------------------------------------------------------------------------------
         # Residual encoder Z = normalize(X + MLP(X)); the last layer starts at zero, so Z = X at initialization.
@@ -165,18 +172,20 @@ class TRIAD(nn.Module):
         nn.init.zeros_(self.encoder[-1].weight)
         nn.init.zeros_(self.encoder[-1].bias)
 
-        # A_z = B_z = sqrt(10) [I_r 0] and A_h = B_h = 0: the content score starts as 10 x the dot product of the
-        # first r feature coordinates (seed mean against candidate).
-        start=math.sqrt(10.)*torch.eye(rank,d)
-        self.query_content=nn.Parameter(start.clone())         # A_z, r x d
-        self.key_content=nn.Parameter(start.clone())           # B_z, r x d
-        self.query_history=nn.Parameter(torch.zeros(rank,d))   # A_h, r x d
-        self.key_history=nn.Parameter(torch.zeros(rank,d))     # B_h, r x d
+        # A_z = B_z = sqrt(10) I and A_h = B_h = 0: M_zz = A_z^T B_z = 10 I, so the content score starts as 10 x the
+        # dot product of the seed mean with the candidate (cosine), over all d feature directions.
+        start=math.sqrt(10.)*torch.eye(d)
+        self.query_content=nn.Parameter(start.clone())      # A_z, d x d
+        self.key_content=nn.Parameter(start.clone())        # B_z, d x d
+        self.query_history=nn.Parameter(torch.zeros(d,d))   # A_h, d x d
+        self.key_history=nn.Parameter(torch.zeros(d,d))     # B_h, d x d
 
         # ---- graph term (§8) -------------------------------------------------------------------------------------
-        self.exponents=nn.Parameter(torch.zeros(2))  # alpha, beta; 0 means raw counts
-        self.theta=nn.Parameter(torch.tensor(1.))    # theta
-        self.prior=curve(1)                          # rho, a curve of log(1 + f_c)
+        self.exponents=nn.Parameter(torch.full((2,),.5))  # alpha, beta; 1/2 = cosine normalization, 0 = raw counts
+        self.theta=nn.Parameter(torch.tensor(1.))         # theta
+        self.prior=curve(1)                               # rho, a curve of log(1 + f_c)
+        nn.init.zeros_(self.prior[-1].weight)             # last layer at zero: rho = 0 at the start
+        nn.init.zeros_(self.prior[-1].bias)
 
         # ---- gate (§9) -------------------------------------------------------------------------------------------
         # 3 query statistics -> one weight per term: content, one per label level, graph.
@@ -391,7 +400,7 @@ class TRIAD(nn.Module):
         """Scores (queries x catalogue). bundles: the complete training bundles, for leave-one-out training scores.
         cache: model.cache(), for evaluation only.
 
-        s(c | S) = w_C C + sum_l w_l L_l + w_G G   (§5)
+        s(c | S) = w_C C^ + sum_l w_l L_l^ + w_G G^, each term scaled per query   (§5)
         """
         if cache is not None and bundles is not None:
             raise ValueError('The cache is for evaluation only')
@@ -406,10 +415,13 @@ class TRIAD(nn.Module):
                +[self.label_scores(i,seeds) for i in range(self.levels)]
                +[self.graph_scores(seeds,bundles,cache)])
 
+        # Per-query scaling (§5): divide each term by its largest absolute value over the catalogue.
+        parts=[v/v.abs().amax(1,keepdim=True).clamp_min(1e-6) for v in parts]
+
         # Weighted sum, with one weight per query and term.
         w=self.gate_weights(seeds,bundles)
         return sum(w[:,j,None]*v for j,v in enumerate(parts))
 
     def parameter_count(self):
-        """Number of trained parameters (41,368 with one label level and 41,466 with two, at the default settings)."""
+        """Number of trained parameters (74,136 with one label level and 74,234 with two, at the default settings)."""
         return sum(p.numel() for p in self.parameters())

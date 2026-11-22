@@ -3,7 +3,8 @@
 Each step takes 32 training bundles, hides a random part of each (half, or a uniform cut, with equal chance), and
 scores the whole catalogue from the visible part with the bundle's own counts removed (leave-one-out). Each hidden
 item competes against every item outside the bundle. Two AdamW groups: the small relation parameters at 1e-2, the
-content maps at 1e-3, weight decay 1e-3. The epoch is chosen on validation NDCG@20 (patience 6, at most 100 epochs).
+content maps at 1e-3, weight decay 1e-3. The epoch is chosen on validation NDCG@20 (patience 6, at most 100 epochs);
+epoch 0, the untrained model, is a candidate too, so with too little data the model stays the simple scorer it starts as.
 
 See ARCHITECTURE.md §10 (training) and §11 (leakage). The flow of one run is:
 
@@ -31,8 +32,19 @@ from .model import TRIAD
 #   batch:            training bundles per step
 #   shared_lr:        content maps and encoder
 #   fast_lr:          the small relation parameters (model.fast_parameters)
-#   rank:             r, rank of the content maps;  hidden: encoder width
-CONFIG=dict(epochs=100,batch=32,patience=6,shared_lr=.001,fast_lr=.01,weight_decay=.001,rank=64,hidden=32)
+#   hidden:           encoder width
+CONFIG=dict(epochs=100,batch=32,patience=6,shared_lr=.001,fast_lr=.01,weight_decay=.001,hidden=32)
+
+# Small datasets (about 1,200 training bundles, so about 38 steps per epoch): both learning rates halved. With the
+# default rates the model moves so far in the first one or two epochs that validation cannot tell a good early model
+# from a bad one, and test NDCG@20 varied by up to .06 between seeds on Food. Halving them was chosen on validation
+# (five seeds on Electronic, Food and Clothing); test was not used.
+SMALL=('electronic','food','clothing')
+
+
+def config_for(name):
+    """The training configuration of a dataset: CONFIG, with both learning rates halved on the small datasets."""
+    return dict(CONFIG,shared_lr=CONFIG['shared_lr']/2,fast_lr=CONFIG['fast_lr']/2) if name in SMALL else dict(CONFIG)
 
 
 def log(message):
@@ -53,7 +65,7 @@ def build(ds,cache,config=CONFIG):
     """A freshly initialized TRIAD for a dataset (fixed structures built, parameters at their initial values).
 
     cache is not used by the model; it is kept so that callers can pass one."""
-    return TRIAD(ds.features,ds.levels,ds.train,rank=config['rank'],hidden=config['hidden'])
+    return TRIAD(ds.features,ds.levels,ds.train,hidden=config['hidden'])
 
 
 def load(ds,run,cache):
@@ -103,7 +115,7 @@ def loss(scores,seeds,truth):
     return ((F.softplus(negatives-scores)*positive).sum(1)/positive.sum(1)).mean()
 
 
-def fit(ds,seed,run,cache,config=CONFIG):
+def fit(ds,seed,run,cache,config=CONFIG,device='cpu'):
     """Train one seed into the run directory; resumes from the last saved epoch. Returns selected.json.
 
     Files in the run directory:
@@ -122,6 +134,11 @@ def fit(ds,seed,run,cache,config=CONFIG):
     torch.manual_seed(seed)
     rng=np.random.default_rng(seed)
     model=build(ds,cache,config)
+    if device!='cpu':
+        # The model is built on the CPU (its constructor uses numpy and scipy), then moved. Making the device the
+        # default puts every tensor the forward pass creates there too.
+        model=model.to(device)
+        torch.set_default_device(device)
     # A bundle needs at least two distinct items to give a seed and a target.
     train=[b for b in ds.train if len(set(b))>=2]
 
@@ -137,7 +154,7 @@ def fit(ds,seed,run,cache,config=CONFIG):
 
     # ---- resume an interrupted run -----------------------------------------------------------------------------
     if (run/'last.pt').exists():
-        saved=torch.load(run/'last.pt',map_location='cpu',weights_only=False)
+        saved=torch.load(run/'last.pt',map_location=device,weights_only=False)
         if saved['config']!=config or saved['seed']!=seed:
             raise RuntimeError('Resume mismatch')
         model.load_state_dict(saved['model'])
@@ -146,6 +163,13 @@ def fit(ds,seed,run,cache,config=CONFIG):
         torch.set_rng_state(saved['torch_rng'])
         rng.bit_generator.state=saved['numpy_rng']
         state=saved['state']
+
+    else:
+        # Epoch 0: the untrained model (the simple scorer it starts as) is a candidate for selection too.
+        val=evaluate(model,ds.val_pairs)
+        state.update(best=val['ndcg20'],best_epoch=0)
+        state['history'].append(dict(epoch=0,loss=None,recall20=val['recall20'],ndcg20=val['ndcg20']))
+        torch.save(model.state_dict(),run/'model.pt')
 
     log(f'{ds.name} seed={seed} parameters={model.parameter_count()} train_bundles={len(train)} start_epoch={state["epoch"]+1}')
     started=time.monotonic()
@@ -202,7 +226,7 @@ def fit(ds,seed,run,cache,config=CONFIG):
 
     # ---- finish ------------------------------------------------------------------------------------------------
     # Reload the best epoch and check that it reproduces its validation score exactly.
-    model.load_state_dict(torch.load(run/'model.pt',map_location='cpu',weights_only=False))
+    model.load_state_dict(torch.load(run/'model.pt',map_location=device,weights_only=False))
     val=evaluate(model,ds.val_pairs)
     if abs(val['ndcg20']-state['best'])>1e-9:
         raise RuntimeError('Selected checkpoint does not replay its validation score')
