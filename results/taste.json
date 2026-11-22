@@ -1,0 +1,2100 @@
+{
+ "note": "The fixed taste learned by the antisymmetric part K = (M_zz - M_zz')/2 of TRIAD's content matrix (TRIAD_DESIGN.md\n\u00a73.5). Its query-independent piece scores candidate c by t_c = mu' K z_c, mu the catalogue mean of the refined\nfeatures z. Per dataset, on validation queries only (never test), seeds 0-2:\n\n  seed_agreement   correlation of t over items between each pair of seeds\n  popularity       correlation of t with log(1 + f_c), per seed\n  auc_catalogue    AUC of t for validation targets against all other items (.5 = no better than chance), per seed\n  shortlist        inside each query's top 100 (ranked by the model with t removed): AUC of t for the targets, and the\n                   spread of t against the spread of the rest of the score (standard deviations), per seed\n  categories       seed 0: per category with at least 300 shortlist appearances, the mean of t and the share of its\n                   shortlist appearances that are targets; and their correlation\n  extremes         the 25 items with the highest and the lowest mean t over seeds (item IDs and categories only; item\n                   titles are data and stay out of the repository: --titles prints them from the dataset files)\n\npython -m analysis.taste pog_dense [pog ...] [--titles]    writes results/taste.json\n",
+ "datasets": {
+  "pog_dense": {
+   "seed_agreement": [
+    0.8907711470656827,
+    0.8602346513148056,
+    0.8393013135346448
+   ],
+   "seeds": [
+    {
+     "seed": 0,
+     "popularity": -0.0064275491444553915,
+     "auc_catalogue": 0.5014705737256381,
+     "shortlist_auc": 0.5993669054152385,
+     "shortlist_spread_ratio": 0.8425690073370934,
+     "categories": {
+      "correlation": 0.03438749661614332,
+      "rows": [
+       {
+        "category": 0,
+        "taste": -0.19468234479427338,
+        "hit_rate": 0.0024630541871921183,
+        "appearances": 1624
+       },
+       {
+        "category": 2,
+        "taste": 0.04732239991426468,
+        "hit_rate": 0.011667373780229105,
+        "appearances": 9428
+       },
+       {
+        "category": 3,
+        "taste": 0.07580706477165222,
+        "hit_rate": 0.0023906287353573988,
+        "appearances": 4183
+       },
+       {
+        "category": 4,
+        "taste": -0.15095044672489166,
+        "hit_rate": 0.002297970126388357,
+        "appearances": 2611
+       },
+       {
+        "category": 5,
+        "taste": -0.16196304559707642,
+        "hit_rate": 0.0017006802721088435,
+        "appearances": 1764
+       },
+       {
+        "category": 7,
+        "taste": 0.04623130336403847,
+        "hit_rate": 0.012925840727352393,
+        "appearances": 9129
+       },
+       {
+        "category": 8,
+        "taste": -0.003756006248295307,
+        "hit_rate": 0.005698005698005698,
+        "appearances": 351
+       },
+       {
+        "category": 9,
+        "taste": -0.1528693437576294,
+        "hit_rate": 0.0033979612232660403,
+        "appearances": 10006
+       },
+       {
+        "category": 10,
+        "taste": -0.033143334090709686,
+        "hit_rate": 0.004362050163576881,
+        "appearances": 917
+       },
+       {
+        "category": 11,
+        "taste": -0.07231620699167252,
+        "hit_rate": 0.0019069412662090007,
+        "appearances": 2622
+       },
+       {
+        "category": 12,
+        "taste": -0.01965501718223095,
+        "hit_rate": 0.0035211267605633804,
+        "appearances": 2556
+       },
+       {
+        "category": 13,
+        "taste": -0.05184442549943924,
+        "hit_rate": 0.003777148253068933,
+        "appearances": 2118
+       },
+       {
+        "category": 14,
+        "taste": 0.27662962675094604,
+        "hit_rate": 0.0007072135785007072,
+        "appearances": 1414
+       },
+       {
+        "category": 17,
+        "taste": -0.170922189950943,
+        "hit_rate": 0.0012674271229404308,
+        "appearances": 2367
+       },
+       {
+        "category": 18,
+        "taste": 0.2675628066062927,
+        "hit_rate": 0.0037243947858473,
+        "appearances": 537
+       },
+       {
+        "category": 20,
+        "taste": -0.06894970685243607,
+        "hit_rate": 0.00209570380719525,
+        "appearances": 2863
+       },
+       {
+        "category": 21,
+        "taste": 0.24741694331169128,
+        "hit_rate": 0.0024968789013732834,
+        "appearances": 801
+       },
+       {
+        "category": 22,
+        "taste": -0.13350598514080048,
+        "hit_rate": 0.005399568034557235,
+        "appearances": 1852
+       },
+       {
+        "category": 23,
+        "taste": -0.04746928811073303,
+        "hit_rate": 0.0029585798816568047,
+        "appearances": 676
+       },
+       {
+        "category": 24,
+        "taste": -0.02533952333033085,
+        "hit_rate": 0.002758620689655172,
+        "appearances": 725
+       },
+       {
+        "category": 25,
+        "taste": -0.09835106879472733,
+        "hit_rate": 0.0010084033613445378,
+        "appearances": 2975
+       },
+       {
+        "category": 26,
+        "taste": -0.24142266809940338,
+        "hit_rate": 0.008184958809460538,
+        "appearances": 18815
+       },
+       {
+        "category": 27,
+        "taste": -0.11404432356357574,
+        "hit_rate": 0.02239434248189931,
+        "appearances": 5939
+       },
+       {
+        "category": 28,
+        "taste": 0.02863837406039238,
+        "hit_rate": 0.004712746858168761,
+        "appearances": 4456
+       },
+       {
+        "category": 31,
+        "taste": 0.04883139580488205,
+        "hit_rate": 0.007122507122507123,
+        "appearances": 702
+       },
+       {
+        "category": 32,
+        "taste": -0.02527538500726223,
+        "hit_rate": 0.004149377593360996,
+        "appearances": 482
+       },
+       {
+        "category": 33,
+        "taste": 0.20642445981502533,
+        "hit_rate": 0.004140786749482402,
+        "appearances": 483
+       },
+       {
+        "category": 36,
+        "taste": -0.17207574844360352,
+        "hit_rate": 0.002336448598130841,
+        "appearances": 428
+       },
+       {
+        "category": 37,
+        "taste": -0.27882349491119385,
+        "hit_rate": 0.0,
+        "appearances": 1103
+       },
+       {
+        "category": 40,
+        "taste": 0.12780366837978363,
+        "hit_rate": 0.005567928730512249,
+        "appearances": 898
+       },
+       {
+        "category": 46,
+        "taste": -0.09881463646888733,
+        "hit_rate": 0.012875536480686695,
+        "appearances": 1864
+       },
+       {
+        "category": 58,
+        "taste": -0.21269682049751282,
+        "hit_rate": 0.0,
+        "appearances": 550
+       }
+      ]
+     }
+    },
+    {
+     "seed": 1,
+     "popularity": 0.0063569792498990845,
+     "auc_catalogue": 0.5075532105173547,
+     "shortlist_auc": 0.6742296277379647,
+     "shortlist_spread_ratio": 0.826608857691288
+    },
+    {
+     "seed": 2,
+     "popularity": -0.015546326836405262,
+     "auc_catalogue": 0.49601819546578163,
+     "shortlist_auc": 0.6111671942030015,
+     "shortlist_spread_ratio": 0.8982040775716305
+    }
+   ],
+   "highest": [
+    {
+     "item": 16263,
+     "category": 31
+    },
+    {
+     "item": 8110,
+     "category": 21
+    },
+    {
+     "item": 21855,
+     "category": 3
+    },
+    {
+     "item": 30954,
+     "category": 3
+    },
+    {
+     "item": 27350,
+     "category": 7
+    },
+    {
+     "item": 27025,
+     "category": 60
+    },
+    {
+     "item": 24125,
+     "category": 60
+    },
+    {
+     "item": 1400,
+     "category": 7
+    },
+    {
+     "item": 12927,
+     "category": 7
+    },
+    {
+     "item": 28588,
+     "category": 7
+    },
+    {
+     "item": 14057,
+     "category": 14
+    },
+    {
+     "item": 8001,
+     "category": 3
+    },
+    {
+     "item": 5192,
+     "category": 30
+    },
+    {
+     "item": 9876,
+     "category": 7
+    },
+    {
+     "item": 20463,
+     "category": 42
+    },
+    {
+     "item": 18384,
+     "category": 3
+    },
+    {
+     "item": 22982,
+     "category": 16
+    },
+    {
+     "item": 24216,
+     "category": 7
+    },
+    {
+     "item": 18304,
+     "category": 3
+    },
+    {
+     "item": 16348,
+     "category": 3
+    },
+    {
+     "item": 30875,
+     "category": 35
+    },
+    {
+     "item": 16174,
+     "category": 28
+    },
+    {
+     "item": 17836,
+     "category": 7
+    },
+    {
+     "item": 12523,
+     "category": 3
+    },
+    {
+     "item": 27352,
+     "category": 7
+    }
+   ],
+   "lowest": [
+    {
+     "item": 23137,
+     "category": 11
+    },
+    {
+     "item": 23047,
+     "category": 17
+    },
+    {
+     "item": 11917,
+     "category": 26
+    },
+    {
+     "item": 9715,
+     "category": 5
+    },
+    {
+     "item": 11838,
+     "category": 10
+    },
+    {
+     "item": 8531,
+     "category": 17
+    },
+    {
+     "item": 26612,
+     "category": 9
+    },
+    {
+     "item": 26471,
+     "category": 26
+    },
+    {
+     "item": 29937,
+     "category": 26
+    },
+    {
+     "item": 11948,
+     "category": 26
+    },
+    {
+     "item": 17371,
+     "category": 37
+    },
+    {
+     "item": 11967,
+     "category": 12
+    },
+    {
+     "item": 17247,
+     "category": 12
+    },
+    {
+     "item": 3777,
+     "category": 37
+    },
+    {
+     "item": 26393,
+     "category": 20
+    },
+    {
+     "item": 11075,
+     "category": 0
+    },
+    {
+     "item": 29779,
+     "category": 26
+    },
+    {
+     "item": 8354,
+     "category": 26
+    },
+    {
+     "item": 11241,
+     "category": 26
+    },
+    {
+     "item": 31037,
+     "category": 26
+    },
+    {
+     "item": 29964,
+     "category": 37
+    },
+    {
+     "item": 17329,
+     "category": 20
+    },
+    {
+     "item": 9397,
+     "category": 37
+    },
+    {
+     "item": 11260,
+     "category": 22
+    },
+    {
+     "item": 16727,
+     "category": 26
+    }
+   ]
+  },
+  "pog": {
+   "seed_agreement": [
+    0.8589920658845495,
+    0.8970883362089198,
+    0.8318844231145122
+   ],
+   "seeds": [
+    {
+     "seed": 0,
+     "popularity": 0.07046977457575679,
+     "auc_catalogue": 0.5177216800570186,
+     "shortlist_auc": 0.6550198438726577,
+     "shortlist_spread_ratio": 1.497329430937767,
+     "categories": {
+      "correlation": 0.30758440837550566,
+      "rows": [
+       {
+        "category": 0,
+        "taste": -0.08464517444372177,
+        "hit_rate": 0.0005887894488930759,
+        "appearances": 8492
+       },
+       {
+        "category": 2,
+        "taste": -0.238352432847023,
+        "hit_rate": 0.0034617048896581565,
+        "appearances": 2311
+       },
+       {
+        "category": 3,
+        "taste": 0.25483644008636475,
+        "hit_rate": 0.01014040561622465,
+        "appearances": 1282
+       },
+       {
+        "category": 4,
+        "taste": 0.06734849512577057,
+        "hit_rate": 0.0020646101530240467,
+        "appearances": 8234
+       },
+       {
+        "category": 7,
+        "taste": -0.0891057625412941,
+        "hit_rate": 0.0,
+        "appearances": 542
+       },
+       {
+        "category": 8,
+        "taste": -0.03621448948979378,
+        "hit_rate": 0.0015062509414068383,
+        "appearances": 6639
+       },
+       {
+        "category": 9,
+        "taste": 0.20959147810935974,
+        "hit_rate": 0.010687022900763359,
+        "appearances": 1310
+       },
+       {
+        "category": 11,
+        "taste": -0.2292173057794571,
+        "hit_rate": 0.002863278453829635,
+        "appearances": 1397
+       },
+       {
+        "category": 12,
+        "taste": -0.20674151182174683,
+        "hit_rate": 0.0006449532408900354,
+        "appearances": 3101
+       },
+       {
+        "category": 13,
+        "taste": -0.17029587924480438,
+        "hit_rate": 0.001670843776106934,
+        "appearances": 3591
+       },
+       {
+        "category": 14,
+        "taste": -0.022108256816864014,
+        "hit_rate": 0.001797106658280169,
+        "appearances": 11129
+       },
+       {
+        "category": 15,
+        "taste": 0.14063282310962677,
+        "hit_rate": 0.004625735912531539,
+        "appearances": 2378
+       },
+       {
+        "category": 16,
+        "taste": -0.265085905790329,
+        "hit_rate": 0.007836990595611285,
+        "appearances": 638
+       },
+       {
+        "category": 17,
+        "taste": 0.03570825979113579,
+        "hit_rate": 0.0,
+        "appearances": 1044
+       },
+       {
+        "category": 19,
+        "taste": -0.15382082760334015,
+        "hit_rate": 0.0016835016835016834,
+        "appearances": 594
+       },
+       {
+        "category": 20,
+        "taste": -0.09593857824802399,
+        "hit_rate": 0.005289733108920414,
+        "appearances": 4159
+       },
+       {
+        "category": 21,
+        "taste": -0.2029438018798828,
+        "hit_rate": 0.0012981393336218088,
+        "appearances": 2311
+       },
+       {
+        "category": 22,
+        "taste": -0.22249747812747955,
+        "hit_rate": 0.004634994206257242,
+        "appearances": 863
+       },
+       {
+        "category": 23,
+        "taste": -0.23836641013622284,
+        "hit_rate": 0.003755868544600939,
+        "appearances": 1065
+       },
+       {
+        "category": 26,
+        "taste": 0.0033393537160009146,
+        "hit_rate": 0.003980099502487562,
+        "appearances": 1005
+       },
+       {
+        "category": 28,
+        "taste": -0.19119751453399658,
+        "hit_rate": 0.0008650519031141869,
+        "appearances": 3468
+       },
+       {
+        "category": 29,
+        "taste": -0.05482237786054611,
+        "hit_rate": 0.0019342359767891683,
+        "appearances": 8272
+       },
+       {
+        "category": 30,
+        "taste": -0.21798831224441528,
+        "hit_rate": 0.0016965584100824044,
+        "appearances": 4126
+       },
+       {
+        "category": 32,
+        "taste": -0.15527909994125366,
+        "hit_rate": 0.0004088307440719542,
+        "appearances": 2446
+       },
+       {
+        "category": 34,
+        "taste": -0.25219616293907166,
+        "hit_rate": 0.00048123195380173246,
+        "appearances": 4156
+       },
+       {
+        "category": 35,
+        "taste": 0.21998780965805054,
+        "hit_rate": 0.0034904013961605585,
+        "appearances": 573
+       },
+       {
+        "category": 36,
+        "taste": 0.05241594836115837,
+        "hit_rate": 0.0017467248908296944,
+        "appearances": 1145
+       },
+       {
+        "category": 37,
+        "taste": -0.27925974130630493,
+        "hit_rate": 0.0,
+        "appearances": 342
+       },
+       {
+        "category": 39,
+        "taste": 0.052320659160614014,
+        "hit_rate": 0.0009478672985781991,
+        "appearances": 3165
+       },
+       {
+        "category": 40,
+        "taste": -0.07580029219388962,
+        "hit_rate": 0.004497751124437781,
+        "appearances": 667
+       },
+       {
+        "category": 41,
+        "taste": -0.1523064225912094,
+        "hit_rate": 0.001697792869269949,
+        "appearances": 2356
+       },
+       {
+        "category": 42,
+        "taste": -0.21931923925876617,
+        "hit_rate": 0.0013315579227696406,
+        "appearances": 2253
+       },
+       {
+        "category": 43,
+        "taste": -0.18377038836479187,
+        "hit_rate": 0.0,
+        "appearances": 512
+       },
+       {
+        "category": 48,
+        "taste": -0.10374556481838226,
+        "hit_rate": 0.0014064697609001407,
+        "appearances": 1422
+       },
+       {
+        "category": 49,
+        "taste": -0.2643221318721771,
+        "hit_rate": 0.00980392156862745,
+        "appearances": 306
+       }
+      ]
+     }
+    },
+    {
+     "seed": 1,
+     "popularity": 0.045170911035781455,
+     "auc_catalogue": 0.5168896019938095,
+     "shortlist_auc": 0.6659310614197832,
+     "shortlist_spread_ratio": 1.7240278101563453
+    },
+    {
+     "seed": 2,
+     "popularity": 0.057388742962016244,
+     "auc_catalogue": 0.5172105491459286,
+     "shortlist_auc": 0.6651794198832527,
+     "shortlist_spread_ratio": 1.5670081193745136
+    }
+   ],
+   "highest": [
+    {
+     "item": 17091,
+     "category": 15
+    },
+    {
+     "item": 27936,
+     "category": 3
+    },
+    {
+     "item": 33133,
+     "category": 9
+    },
+    {
+     "item": 36415,
+     "category": 15
+    },
+    {
+     "item": 40346,
+     "category": 14
+    },
+    {
+     "item": 10244,
+     "category": 15
+    },
+    {
+     "item": 3567,
+     "category": 15
+    },
+    {
+     "item": 6018,
+     "category": 9
+    },
+    {
+     "item": 47857,
+     "category": 3
+    },
+    {
+     "item": 12412,
+     "category": 15
+    },
+    {
+     "item": 28251,
+     "category": 15
+    },
+    {
+     "item": 1621,
+     "category": 15
+    },
+    {
+     "item": 9100,
+     "category": 15
+    },
+    {
+     "item": 46787,
+     "category": 15
+    },
+    {
+     "item": 16348,
+     "category": 3
+    },
+    {
+     "item": 6397,
+     "category": 3
+    },
+    {
+     "item": 8350,
+     "category": 30
+    },
+    {
+     "item": 26294,
+     "category": 3
+    },
+    {
+     "item": 5372,
+     "category": 14
+    },
+    {
+     "item": 25306,
+     "category": 15
+    },
+    {
+     "item": 31955,
+     "category": 15
+    },
+    {
+     "item": 36500,
+     "category": 14
+    },
+    {
+     "item": 30613,
+     "category": 9
+    },
+    {
+     "item": 13195,
+     "category": 15
+    },
+    {
+     "item": 42770,
+     "category": 3
+    }
+   ],
+   "lowest": [
+    {
+     "item": 39000,
+     "category": 30
+    },
+    {
+     "item": 47058,
+     "category": 30
+    },
+    {
+     "item": 17174,
+     "category": 16
+    },
+    {
+     "item": 42852,
+     "category": 49
+    },
+    {
+     "item": 47276,
+     "category": 28
+    },
+    {
+     "item": 38825,
+     "category": 22
+    },
+    {
+     "item": 48082,
+     "category": 2
+    },
+    {
+     "item": 21851,
+     "category": 30
+    },
+    {
+     "item": 471,
+     "category": 49
+    },
+    {
+     "item": 35924,
+     "category": 49
+    },
+    {
+     "item": 34362,
+     "category": 13
+    },
+    {
+     "item": 20688,
+     "category": 2
+    },
+    {
+     "item": 28338,
+     "category": 30
+    },
+    {
+     "item": 17529,
+     "category": 30
+    },
+    {
+     "item": 30245,
+     "category": 30
+    },
+    {
+     "item": 39365,
+     "category": 49
+    },
+    {
+     "item": 38579,
+     "category": 21
+    },
+    {
+     "item": 24390,
+     "category": 12
+    },
+    {
+     "item": 22630,
+     "category": 28
+    },
+    {
+     "item": 8810,
+     "category": 11
+    },
+    {
+     "item": 48093,
+     "category": 2
+    },
+    {
+     "item": 14068,
+     "category": 22
+    },
+    {
+     "item": 41103,
+     "category": 30
+    },
+    {
+     "item": 32718,
+     "category": 50
+    },
+    {
+     "item": 24994,
+     "category": 21
+    }
+   ]
+  },
+  "electronic": {
+   "seed_agreement": [
+    0.7867770043213018,
+    0.9005803041353121,
+    0.8106186178928455
+   ],
+   "seeds": [
+    {
+     "seed": 0,
+     "popularity": 0.042785678283542995,
+     "auc_catalogue": 0.44671474078482165,
+     "shortlist_auc": 0.5121249071034152,
+     "shortlist_spread_ratio": 0.09095691049719132,
+     "categories": {
+      "correlation": 0.21572726556867877,
+      "rows": [
+       {
+        "category": 1,
+        "taste": -0.011476493440568447,
+        "hit_rate": 0.007551240560949299,
+        "appearances": 927
+       },
+       {
+        "category": 8,
+        "taste": 0.04309147223830223,
+        "hit_rate": 0.012072434607645875,
+        "appearances": 497
+       },
+       {
+        "category": 20,
+        "taste": -0.10022015124559402,
+        "hit_rate": 0.007889546351084813,
+        "appearances": 1014
+       },
+       {
+        "category": 25,
+        "taste": -0.06986543536186218,
+        "hit_rate": 0.0076045627376425855,
+        "appearances": 789
+       },
+       {
+        "category": 44,
+        "taste": -0.12652838230133057,
+        "hit_rate": 0.0079155672823219,
+        "appearances": 379
+       },
+       {
+        "category": 47,
+        "taste": -0.09418146312236786,
+        "hit_rate": 0.00546448087431694,
+        "appearances": 366
+       },
+       {
+        "category": 130,
+        "taste": -0.06726371496915817,
+        "hit_rate": 0.021604938271604937,
+        "appearances": 324
+       }
+      ]
+     }
+    },
+    {
+     "seed": 1,
+     "popularity": 0.019786203638078703,
+     "auc_catalogue": 0.4588184501931133,
+     "shortlist_auc": 0.544319238078978,
+     "shortlist_spread_ratio": 0.20116481249559823
+    },
+    {
+     "seed": 2,
+     "popularity": 0.027306255990016248,
+     "auc_catalogue": 0.44909510974201,
+     "shortlist_auc": 0.5333373095484484,
+     "shortlist_spread_ratio": 0.0878070697855915
+    }
+   ],
+   "highest": [
+    {
+     "item": 1215,
+     "category": 377
+    },
+    {
+     "item": 828,
+     "category": 331
+    },
+    {
+     "item": 823,
+     "category": 160
+    },
+    {
+     "item": 968,
+     "category": 39
+    },
+    {
+     "item": 3414,
+     "category": 147
+    },
+    {
+     "item": 218,
+     "category": 147
+    },
+    {
+     "item": 3412,
+     "category": 147
+    },
+    {
+     "item": 556,
+     "category": 450
+    },
+    {
+     "item": 602,
+     "category": 193
+    },
+    {
+     "item": 913,
+     "category": 331
+    },
+    {
+     "item": 454,
+     "category": 147
+    },
+    {
+     "item": 483,
+     "category": 442
+    },
+    {
+     "item": 2270,
+     "category": 196
+    },
+    {
+     "item": 3209,
+     "category": 210
+    },
+    {
+     "item": 2095,
+     "category": 46
+    },
+    {
+     "item": 3487,
+     "category": 161
+    },
+    {
+     "item": 342,
+     "category": 36
+    },
+    {
+     "item": 855,
+     "category": 228
+    },
+    {
+     "item": 3408,
+     "category": 39
+    },
+    {
+     "item": 1116,
+     "category": 1
+    },
+    {
+     "item": 3086,
+     "category": 272
+    },
+    {
+     "item": 363,
+     "category": 116
+    },
+    {
+     "item": 1459,
+     "category": 331
+    },
+    {
+     "item": 2157,
+     "category": 161
+    },
+    {
+     "item": 2969,
+     "category": 8
+    }
+   ],
+   "lowest": [
+    {
+     "item": 2173,
+     "category": 97
+    },
+    {
+     "item": 78,
+     "category": 97
+    },
+    {
+     "item": 912,
+     "category": 206
+    },
+    {
+     "item": 199,
+     "category": 97
+    },
+    {
+     "item": 2806,
+     "category": 97
+    },
+    {
+     "item": 128,
+     "category": 54
+    },
+    {
+     "item": 3238,
+     "category": 97
+    },
+    {
+     "item": 3387,
+     "category": 47
+    },
+    {
+     "item": 1232,
+     "category": 252
+    },
+    {
+     "item": 2460,
+     "category": 97
+    },
+    {
+     "item": 3405,
+     "category": 94
+    },
+    {
+     "item": 3375,
+     "category": 252
+    },
+    {
+     "item": 2831,
+     "category": 97
+    },
+    {
+     "item": 1496,
+     "category": 197
+    },
+    {
+     "item": 248,
+     "category": 97
+    },
+    {
+     "item": 1979,
+     "category": 97
+    },
+    {
+     "item": 2207,
+     "category": 68
+    },
+    {
+     "item": 1728,
+     "category": 44
+    },
+    {
+     "item": 2062,
+     "category": 97
+    },
+    {
+     "item": 383,
+     "category": 367
+    },
+    {
+     "item": 1978,
+     "category": 214
+    },
+    {
+     "item": 420,
+     "category": 44
+    },
+    {
+     "item": 1699,
+     "category": 54
+    },
+    {
+     "item": 1148,
+     "category": 97
+    },
+    {
+     "item": 3037,
+     "category": 97
+    }
+   ]
+  },
+  "spotify_sparse": {
+   "seed_agreement": [
+    0.901592902650732,
+    0.8177546111403386,
+    0.8739644142073478
+   ],
+   "seeds": [
+    {
+     "seed": 0,
+     "popularity": 0.015802465044684043,
+     "auc_catalogue": 0.5065563417181669,
+     "shortlist_auc": 0.6221001023676972,
+     "shortlist_spread_ratio": 0.6314213998988271,
+     "categories": {
+      "correlation": -0.025214347849292596,
+      "rows": [
+       {
+        "category": 79,
+        "taste": -0.13391710817813873,
+        "hit_rate": 0.08602150537634409,
+        "appearances": 372
+       },
+       {
+        "category": 83,
+        "taste": -0.08193032443523407,
+        "hit_rate": 0.016025641025641024,
+        "appearances": 312
+       },
+       {
+        "category": 356,
+        "taste": 0.14304952323436737,
+        "hit_rate": 0.04631217838765009,
+        "appearances": 583
+       },
+       {
+        "category": 371,
+        "taste": -0.06208093836903572,
+        "hit_rate": 0.0213089802130898,
+        "appearances": 657
+       },
+       {
+        "category": 390,
+        "taste": 0.036407217383384705,
+        "hit_rate": 0.02280130293159609,
+        "appearances": 614
+       },
+       {
+        "category": 392,
+        "taste": -0.07622383534908295,
+        "hit_rate": 0.019559902200488997,
+        "appearances": 409
+       },
+       {
+        "category": 604,
+        "taste": -0.39045625925064087,
+        "hit_rate": 0.03125,
+        "appearances": 416
+       },
+       {
+        "category": 661,
+        "taste": 0.21742919087409973,
+        "hit_rate": 0.0410958904109589,
+        "appearances": 365
+       },
+       {
+        "category": 715,
+        "taste": 0.052036870270967484,
+        "hit_rate": 0.06172839506172839,
+        "appearances": 324
+       },
+       {
+        "category": 790,
+        "taste": 0.04802308231592178,
+        "hit_rate": 0.0435244161358811,
+        "appearances": 942
+       },
+       {
+        "category": 1052,
+        "taste": -0.27426835894584656,
+        "hit_rate": 0.078125,
+        "appearances": 320
+       },
+       {
+        "category": 1094,
+        "taste": -0.01675056293606758,
+        "hit_rate": 0.034482758620689655,
+        "appearances": 406
+       },
+       {
+        "category": 1258,
+        "taste": 0.010701832361519337,
+        "hit_rate": 0.030054644808743168,
+        "appearances": 366
+       },
+       {
+        "category": 1318,
+        "taste": -0.09135504812002182,
+        "hit_rate": 0.07161125319693094,
+        "appearances": 391
+       },
+       {
+        "category": 1375,
+        "taste": -0.16430887579917908,
+        "hit_rate": 0.10112359550561797,
+        "appearances": 534
+       },
+       {
+        "category": 1508,
+        "taste": 0.08507633954286575,
+        "hit_rate": 0.16831683168316833,
+        "appearances": 303
+       },
+       {
+        "category": 1599,
+        "taste": -0.017767952755093575,
+        "hit_rate": 0.08463949843260188,
+        "appearances": 319
+       },
+       {
+        "category": 1692,
+        "taste": -0.2044481635093689,
+        "hit_rate": 0.024213075060532687,
+        "appearances": 413
+       },
+       {
+        "category": 1708,
+        "taste": 0.023167062550783157,
+        "hit_rate": 0.022673031026252982,
+        "appearances": 838
+       },
+       {
+        "category": 1888,
+        "taste": 0.00556591060012579,
+        "hit_rate": 0.04314720812182741,
+        "appearances": 394
+       },
+       {
+        "category": 2281,
+        "taste": 0.16945409774780273,
+        "hit_rate": 0.043859649122807015,
+        "appearances": 342
+       },
+       {
+        "category": 2447,
+        "taste": -0.11491268128156662,
+        "hit_rate": 0.12903225806451613,
+        "appearances": 310
+       },
+       {
+        "category": 2465,
+        "taste": 0.29835209250450134,
+        "hit_rate": 0.012779552715654952,
+        "appearances": 313
+       },
+       {
+        "category": 2472,
+        "taste": -0.26329079270362854,
+        "hit_rate": 0.03611738148984198,
+        "appearances": 443
+       },
+       {
+        "category": 2797,
+        "taste": -0.04291505739092827,
+        "hit_rate": 0.06060606060606061,
+        "appearances": 330
+       },
+       {
+        "category": 2904,
+        "taste": -0.10110380500555038,
+        "hit_rate": 0.02195121951219512,
+        "appearances": 410
+       },
+       {
+        "category": 2958,
+        "taste": -0.12299458682537079,
+        "hit_rate": 0.05993690851735016,
+        "appearances": 317
+       },
+       {
+        "category": 2964,
+        "taste": 0.08430860191583633,
+        "hit_rate": 0.08244680851063829,
+        "appearances": 376
+       },
+       {
+        "category": 3015,
+        "taste": 0.19770997762680054,
+        "hit_rate": 0.05697445972495088,
+        "appearances": 509
+       },
+       {
+        "category": 3090,
+        "taste": -0.13880716264247894,
+        "hit_rate": 0.04656862745098039,
+        "appearances": 408
+       },
+       {
+        "category": 3900,
+        "taste": 0.06175316870212555,
+        "hit_rate": 0.022727272727272728,
+        "appearances": 308
+       },
+       {
+        "category": 5644,
+        "taste": 0.04869501292705536,
+        "hit_rate": 0.0196078431372549,
+        "appearances": 306
+       },
+       {
+        "category": 6272,
+        "taste": -0.08353857696056366,
+        "hit_rate": 0.02295918367346939,
+        "appearances": 392
+       },
+       {
+        "category": 7969,
+        "taste": 0.12649990618228912,
+        "hit_rate": 0.06424581005586592,
+        "appearances": 358
+       },
+       {
+        "category": 8693,
+        "taste": -0.10813132673501968,
+        "hit_rate": 0.006535947712418301,
+        "appearances": 306
+       }
+      ]
+     }
+    },
+    {
+     "seed": 1,
+     "popularity": -0.025518325764121875,
+     "auc_catalogue": 0.486615879483383,
+     "shortlist_auc": 0.6094069895864918,
+     "shortlist_spread_ratio": 0.5325755875483156
+    },
+    {
+     "seed": 2,
+     "popularity": -0.06228974384851841,
+     "auc_catalogue": 0.4780747580812208,
+     "shortlist_auc": 0.6010786194506204,
+     "shortlist_spread_ratio": 0.4539587239995599
+    }
+   ],
+   "highest": [
+    {
+     "item": 126612,
+     "category": 833
+    },
+    {
+     "item": 55131,
+     "category": 3031
+    },
+    {
+     "item": 32868,
+     "category": 5879
+    },
+    {
+     "item": 20170,
+     "category": 10936
+    },
+    {
+     "item": 92788,
+     "category": 27956
+    },
+    {
+     "item": 142321,
+     "category": 1944
+    },
+    {
+     "item": 57258,
+     "category": 5218
+    },
+    {
+     "item": 95242,
+     "category": 21296
+    },
+    {
+     "item": 34053,
+     "category": 15459
+    },
+    {
+     "item": 91565,
+     "category": 19671
+    },
+    {
+     "item": 98700,
+     "category": 7352
+    },
+    {
+     "item": 131214,
+     "category": 33569
+    },
+    {
+     "item": 186646,
+     "category": 40263
+    },
+    {
+     "item": 84313,
+     "category": 1324
+    },
+    {
+     "item": 127001,
+     "category": 7703
+    },
+    {
+     "item": 37207,
+     "category": 7703
+    },
+    {
+     "item": 157439,
+     "category": 1944
+    },
+    {
+     "item": 17390,
+     "category": 9924
+    },
+    {
+     "item": 60263,
+     "category": 21825
+    },
+    {
+     "item": 177891,
+     "category": 4257
+    },
+    {
+     "item": 78066,
+     "category": 907
+    },
+    {
+     "item": 123617,
+     "category": 11163
+    },
+    {
+     "item": 24144,
+     "category": 12302
+    },
+    {
+     "item": 8958,
+     "category": 6150
+    },
+    {
+     "item": 40973,
+     "category": 17358
+    }
+   ],
+   "lowest": [
+    {
+     "item": 101800,
+     "category": 10129
+    },
+    {
+     "item": 1491,
+     "category": 1357
+    },
+    {
+     "item": 200048,
+     "category": 611
+    },
+    {
+     "item": 27138,
+     "category": 5718
+    },
+    {
+     "item": 97180,
+     "category": 5
+    },
+    {
+     "item": 84639,
+     "category": 26541
+    },
+    {
+     "item": 141853,
+     "category": 4373
+    },
+    {
+     "item": 124014,
+     "category": 18463
+    },
+    {
+     "item": 90236,
+     "category": 10129
+    },
+    {
+     "item": 147024,
+     "category": 2680
+    },
+    {
+     "item": 34319,
+     "category": 12691
+    },
+    {
+     "item": 125650,
+     "category": 26541
+    },
+    {
+     "item": 139400,
+     "category": 5
+    },
+    {
+     "item": 120527,
+     "category": 880
+    },
+    {
+     "item": 208214,
+     "category": 2680
+    },
+    {
+     "item": 54884,
+     "category": 929
+    },
+    {
+     "item": 32988,
+     "category": 4339
+    },
+    {
+     "item": 208421,
+     "category": 25503
+    },
+    {
+     "item": 135645,
+     "category": 34147
+    },
+    {
+     "item": 10432,
+     "category": 4548
+    },
+    {
+     "item": 112286,
+     "category": 29960
+    },
+    {
+     "item": 132121,
+     "category": 24430
+    },
+    {
+     "item": 73793,
+     "category": 3799
+    },
+    {
+     "item": 33848,
+     "category": 5
+    },
+    {
+     "item": 146427,
+     "category": 35565
+    }
+   ]
+  },
+  "spotify": {
+   "seed_agreement": [
+    0.9090691832749634,
+    0.943454778361182,
+    0.9286372105416871
+   ],
+   "seeds": [
+    {
+     "seed": 0,
+     "popularity": 0.08490861699097675,
+     "auc_catalogue": 0.5469909935364294,
+     "shortlist_auc": 0.5812578239660541,
+     "shortlist_spread_ratio": 0.5555512757524848,
+     "categories": {
+      "correlation": 0.43423761401712546,
+      "rows": [
+       {
+        "category": 163,
+        "taste": 0.12204523384571075,
+        "hit_rate": 0.05813953488372093,
+        "appearances": 344
+       },
+       {
+        "category": 287,
+        "taste": 0.28953102231025696,
+        "hit_rate": 0.08441558441558442,
+        "appearances": 308
+       },
+       {
+        "category": 439,
+        "taste": 0.20249851047992706,
+        "hit_rate": 0.08507223113964688,
+        "appearances": 623
+       },
+       {
+        "category": 455,
+        "taste": 0.055826276540756226,
+        "hit_rate": 0.07511737089201878,
+        "appearances": 639
+       },
+       {
+        "category": 476,
+        "taste": 0.2625938355922699,
+        "hit_rate": 0.2459016393442623,
+        "appearances": 610
+       },
+       {
+        "category": 478,
+        "taste": -0.11262105405330658,
+        "hit_rate": 0.0816,
+        "appearances": 625
+       },
+       {
+        "category": 727,
+        "taste": -0.1115989089012146,
+        "hit_rate": 0.07598784194528875,
+        "appearances": 329
+       },
+       {
+        "category": 860,
+        "taste": 0.15703047811985016,
+        "hit_rate": 0.12560721721027066,
+        "appearances": 1441
+       },
+       {
+        "category": 953,
+        "taste": 0.17699897289276123,
+        "hit_rate": 0.09898477157360407,
+        "appearances": 394
+       },
+       {
+        "category": 1008,
+        "taste": 0.18375317752361298,
+        "hit_rate": 0.09428571428571429,
+        "appearances": 350
+       },
+       {
+        "category": 1015,
+        "taste": 0.5238156914710999,
+        "hit_rate": 0.12573099415204678,
+        "appearances": 342
+       },
+       {
+        "category": 1155,
+        "taste": 0.07269392907619476,
+        "hit_rate": 0.03787878787878788,
+        "appearances": 396
+       },
+       {
+        "category": 1203,
+        "taste": 0.13909682631492615,
+        "hit_rate": 0.09821428571428571,
+        "appearances": 448
+       },
+       {
+        "category": 1214,
+        "taste": -0.11443780362606049,
+        "hit_rate": 0.10899182561307902,
+        "appearances": 367
+       },
+       {
+        "category": 1297,
+        "taste": -0.12818358838558197,
+        "hit_rate": 0.140625,
+        "appearances": 320
+       },
+       {
+        "category": 1313,
+        "taste": 0.04812174662947655,
+        "hit_rate": 0.06430155210643015,
+        "appearances": 451
+       },
+       {
+        "category": 1368,
+        "taste": 0.26524269580841064,
+        "hit_rate": 0.20821917808219179,
+        "appearances": 365
+       },
+       {
+        "category": 1396,
+        "taste": 0.515057384967804,
+        "hit_rate": 0.10144927536231885,
+        "appearances": 414
+       },
+       {
+        "category": 1462,
+        "taste": 0.07024478167295456,
+        "hit_rate": 0.09817671809256662,
+        "appearances": 713
+       },
+       {
+        "category": 1494,
+        "taste": 0.18511272966861725,
+        "hit_rate": 0.09117647058823529,
+        "appearances": 680
+       },
+       {
+        "category": 1575,
+        "taste": 0.03494898974895477,
+        "hit_rate": 0.06235011990407674,
+        "appearances": 417
+       },
+       {
+        "category": 1621,
+        "taste": 0.1886739879846573,
+        "hit_rate": 0.08306709265175719,
+        "appearances": 313
+       },
+       {
+        "category": 1646,
+        "taste": -0.1114148423075676,
+        "hit_rate": 0.05588235294117647,
+        "appearances": 340
+       },
+       {
+        "category": 1666,
+        "taste": 0.22230979800224304,
+        "hit_rate": 0.09933774834437085,
+        "appearances": 302
+       },
+       {
+        "category": 2046,
+        "taste": 0.3530324101448059,
+        "hit_rate": 0.09306078536847767,
+        "appearances": 1859
+       },
+       {
+        "category": 2941,
+        "taste": -0.21517403423786163,
+        "hit_rate": 0.06542056074766354,
+        "appearances": 321
+       },
+       {
+        "category": 2967,
+        "taste": 0.021637817844748497,
+        "hit_rate": 0.07712082262210797,
+        "appearances": 389
+       },
+       {
+        "category": 3064,
+        "taste": 0.37174513936042786,
+        "hit_rate": 0.16120218579234974,
+        "appearances": 366
+       },
+       {
+        "category": 3313,
+        "taste": -0.11954504251480103,
+        "hit_rate": 0.07066381156316917,
+        "appearances": 467
+       },
+       {
+        "category": 3436,
+        "taste": -0.1653839349746704,
+        "hit_rate": 0.05687203791469194,
+        "appearances": 422
+       },
+       {
+        "category": 3506,
+        "taste": -0.10192934423685074,
+        "hit_rate": 0.125,
+        "appearances": 456
+       },
+       {
+        "category": 3512,
+        "taste": 0.2542690932750702,
+        "hit_rate": 0.10077519379844961,
+        "appearances": 903
+       },
+       {
+        "category": 3565,
+        "taste": 0.3350881338119507,
+        "hit_rate": 0.18143459915611815,
+        "appearances": 474
+       },
+       {
+        "category": 3610,
+        "taste": 0.4062884747982025,
+        "hit_rate": 0.09836065573770492,
+        "appearances": 305
+       },
+       {
+        "category": 3663,
+        "taste": 0.4291027784347534,
+        "hit_rate": 0.11094224924012158,
+        "appearances": 658
+       },
+       {
+        "category": 4681,
+        "taste": 0.22838111221790314,
+        "hit_rate": 0.12233285917496443,
+        "appearances": 703
+       },
+       {
+        "category": 5302,
+        "taste": 0.29008597135543823,
+        "hit_rate": 0.07323943661971831,
+        "appearances": 355
+       },
+       {
+        "category": 6082,
+        "taste": 0.5006150603294373,
+        "hit_rate": 0.10734463276836158,
+        "appearances": 531
+       },
+       {
+        "category": 7310,
+        "taste": -0.0511043481528759,
+        "hit_rate": 0.06209150326797386,
+        "appearances": 306
+       },
+       {
+        "category": 9255,
+        "taste": -0.0842030942440033,
+        "hit_rate": 0.0575139146567718,
+        "appearances": 539
+       },
+       {
+        "category": 10946,
+        "taste": -0.19904160499572754,
+        "hit_rate": 0.059006211180124224,
+        "appearances": 322
+       }
+      ]
+     }
+    },
+    {
+     "seed": 1,
+     "popularity": 0.10641460030808257,
+     "auc_catalogue": 0.5571252152832029,
+     "shortlist_auc": 0.6210693529007552,
+     "shortlist_spread_ratio": 0.8665294043794274
+    },
+    {
+     "seed": 2,
+     "popularity": 0.09855905331606536,
+     "auc_catalogue": 0.5541047112722941,
+     "shortlist_auc": 0.5888332296417781,
+     "shortlist_spread_ratio": 0.6127164512723684
+    }
+   ],
+   "highest": [
+    {
+     "item": 7822,
+     "category": 4308
+    },
+    {
+     "item": 48881,
+     "category": 8015
+    },
+    {
+     "item": 150746,
+     "category": 1004
+    },
+    {
+     "item": 95458,
+     "category": 6261
+    },
+    {
+     "item": 54645,
+     "category": 4203
+    },
+    {
+     "item": 59814,
+     "category": 22518
+    },
+    {
+     "item": 251375,
+     "category": 48914
+    },
+    {
+     "item": 119307,
+     "category": 33364
+    },
+    {
+     "item": 79680,
+     "category": 9326
+    },
+    {
+     "item": 194934,
+     "category": 39402
+    },
+    {
+     "item": 202690,
+     "category": 5192
+    },
+    {
+     "item": 234314,
+     "category": 24201
+    },
+    {
+     "item": 19294,
+     "category": 3396
+    },
+    {
+     "item": 121625,
+     "category": 1015
+    },
+    {
+     "item": 215228,
+     "category": 9326
+    },
+    {
+     "item": 85291,
+     "category": 11148
+    },
+    {
+     "item": 90312,
+     "category": 19319
+    },
+    {
+     "item": 199411,
+     "category": 18049
+    },
+    {
+     "item": 121609,
+     "category": 8015
+    },
+    {
+     "item": 113391,
+     "category": 651
+    },
+    {
+     "item": 224514,
+     "category": 7891
+    },
+    {
+     "item": 124587,
+     "category": 1139
+    },
+    {
+     "item": 48796,
+     "category": 19941
+    },
+    {
+     "item": 93234,
+     "category": 29000
+    },
+    {
+     "item": 57766,
+     "category": 11148
+    }
+   ],
+   "lowest": [
+    {
+     "item": 164328,
+     "category": 1608
+    },
+    {
+     "item": 246800,
+     "category": 1988
+    },
+    {
+     "item": 1787,
+     "category": 1608
+    },
+    {
+     "item": 211866,
+     "category": 872
+    },
+    {
+     "item": 32825,
+     "category": 1608
+    },
+    {
+     "item": 246357,
+     "category": 7041
+    },
+    {
+     "item": 115643,
+     "category": 32770
+    },
+    {
+     "item": 145975,
+     "category": 291
+    },
+    {
+     "item": 231296,
+     "category": 872
+    },
+    {
+     "item": 180605,
+     "category": 15682
+    },
+    {
+     "item": 74852,
+     "category": 25590
+    },
+    {
+     "item": 167773,
+     "category": 226
+    },
+    {
+     "item": 182173,
+     "category": 41550
+    },
+    {
+     "item": 176071,
+     "category": 2239
+    },
+    {
+     "item": 54460,
+     "category": 15852
+    },
+    {
+     "item": 144957,
+     "category": 2642
+    },
+    {
+     "item": 173056,
+     "category": 628
+    },
+    {
+     "item": 204216,
+     "category": 33575
+    },
+    {
+     "item": 150484,
+     "category": 3432
+    },
+    {
+     "item": 211827,
+     "category": 7041
+    },
+    {
+     "item": 76156,
+     "category": 2239
+    },
+    {
+     "item": 238228,
+     "category": 2239
+    },
+    {
+     "item": 164878,
+     "category": 11309
+    },
+    {
+     "item": 173868,
+     "category": 3137
+    },
+    {
+     "item": 210215,
+     "category": 872
+    }
+   ]
+  }
+ }
+}

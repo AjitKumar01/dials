@@ -265,7 +265,8 @@ the simple scorer was learned.**
   This is called a **knock-out**.
 - The datasets are grouped as **e-commerce** (Electronic, Food, Clothing), **outfits** (POG_DENSE, POG) and
   **playlists** (Spotify_sparse, Spotify). Numbers in a row follow that order.
-- Code: `analysis/readings.py`, `analysis/extra.py` and `analysis/taste.py`; outputs in `results/`.
+- Code: `python -m analysis.readings`, `analysis.extra` and `analysis.taste`; outputs in `results/` (`readings.json`,
+  `readings_extra.json`, `taste.json`), read from the models in `runs/`.
 
 ### 3.1 Popularity prior $\rho$: learns the base rate from training alone
 
@@ -396,8 +397,8 @@ $K_M^\top\mu$ in feature space. The second piece is a relation between these par
 
 **Worth:** 0%, 0%, 0% | **8%, 20%** | 3%, 4%.
 
-**Not yet explained:** per category, the hit rate inside the shortlist does not follow the preference (correlation
-.03). So it works item by item, not as a plain "clothes beat accessories" rule.
+**Not yet explained:** per category, the hit rate inside the shortlist barely follows the preference (correlation
+.03 on POG_DENSE, .31 on POG). So it works item by item, not as a plain "clothes beat accessories" rule.
 
 ### 3.6 Partner histories ($M_{zh}$, $M_{hz}$, $M_{hh}$): what the seeds were bundled with
 
@@ -420,7 +421,7 @@ with partner histories:
 **Evidence.** The average cosine between refined and original features ($z_c^\top x_c$, 1 = unchanged) is .86 to
 .93 in e-commerce and POG_DENSE, and .62 to .75 on POG and the Spotify sets.
 
-**Worth:** about 0 (e-commerce, −1 to 1%) | **38%, 62%** | **15%, 11%**. The content matrices are built on top of $z$, so the
+**Worth:** about 0 (e-commerce, −1 to 1%) | **38%, 62%** | **14%, 11%**. The content matrices are built on top of $z$, so the
 value of the two cannot be separated.
 
 ### 3.8 Gate $w$: trust content more when the seeds are new
