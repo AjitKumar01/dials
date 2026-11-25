@@ -73,6 +73,14 @@ Data is not part of the repository. By default it is read from the repository's 
     <root>/bundlemllm/datasets/{pog,pog_dense,spotify,spotify_sparse}/   supplied splits, item_info.json, released features
     <root>/BundleRec/dataset/{electronic,food,clothing}/                 bundle_item.csv, item_titles.csv, item_categories.csv
 
+Both are public:
+
+    # POG, POG_DENSE, Spotify, Spotify_sparse (the CLHE / Bundle-MLLM release; the files used are byte-identical to it)
+    git lfs install
+    git clone https://huggingface.co/datasets/xhLiu/BundleConstruction <root>/bundlemllm/datasets
+    # Electronic, Food, Clothing
+    git clone https://github.com/BundleRec/bundle_recommendation.git <root>/BundleRec
+
 - **POG and Spotify:** the supplied train, validation and test files are used unmodified. The released item features
   (POG: BLIP image and text; Spotify: CLAP audio and text; the files CLHE uses) are projected to 128 dimensions by a
   truncated SVD.
@@ -97,9 +105,23 @@ Details: `triad/data.py`.
   `--device cuda` for the Spotify sets.
 - `test` scores each selected model on the test queries once.
 - `baselines` tunes the simple baselines on validation and scores test once (`runs/baselines/<dataset>.json`).
-- The analyses behind TRIAD_DESIGN.md and RESULTS.md: `python -m analysis.readings`, `analysis.extra`,
-  `analysis.taste` and `analysis.tables` (outputs in `results/` and `figures/design/`). `analysis.explained_figures`
-  draws the figures of TRIAD_EXPLAINED.md (`figures/explained/`) from these outputs.
+- The analyses behind TRIAD_DESIGN.md, RESULTS.md and the paper, in this order (outputs in `results/` and
+  `figures/design/`):
+
+      python -m analysis.tables results      # TRIAD against the best simple baseline (Table 3)
+      python -m analysis.tables training_size
+      python -m analysis.readings; python -m analysis.extra; python -m analysis.taste pog_dense pog electronic spotify_sparse spotify
+      python -m analysis.tables knockouts
+      python -m analysis.cold                # warm, cold and seed-removal checks
+      python -m analysis.clhe_cold           # CLHE on warm and cold queries (from results/clhe/)
+      python -m analysis.item_identity       # TRIAD with per-item parameters (trains 18 runs)
+      python -m analysis.data_facts_test
+      python -m analysis.explained_figures   # the figures of TRIAD_EXPLAINED.md (figures/explained/)
+      python paper_v2/figdata/make_figs.py   # the paper's figures
+
+  Run them from the repository root with `PYTHONPATH=.`.
+- `results/clhe/` and `results/ramen/` hold the per-query test rows of our runs of the authors' code of CLHE and
+  RaMen on these splits (see `analysis/clhe_cold.py` and `paper_v2/SOURCES.md`).
 
 **Reproducibility.** CPU training is deterministic: fixed seeds, `torch.use_deterministic_algorithms`, and one thread
 by default. The truncated SVDs behind the features are bit-reproducible only at a fixed BLAS thread count, so
@@ -117,6 +139,6 @@ untrained model is the simple scorer.
     triad/statistics.py   paired tests and Holm correction
     triad/__main__.py     train, test and baselines commands
     analysis/             parameter readings, knock-outs, results tables and figures
-    paper_v2/             the paper (paper/ holds an earlier draft)
+    paper_v2/             the paper
     tests/                checks of the model, training and metrics
 

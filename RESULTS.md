@@ -50,10 +50,9 @@ ItemKNN blend and the label + ItemKNN + content rule, each with or without a pop
 | Spotify_sparse | .209 (label + ItemKNN + content, prior) | **.256** | **+.048** [.043, .052] | < .001 |
 | Spotify | .247 (label + ItemKNN + content, prior) | **.282** | **+.036** [.031, .040] | < .001 |
 
-All seven differences are significant. Computed by bundlefuse `experiments/small_data/table_final.py` (output
-`results/small_data/table_final.json`), with Holm applied over these seven tests. `python -m analysis.tables results`
-computes the same table here once `python -m triad baselines` has written `runs/baselines/` for all seven datasets
-(so far: Electronic, Food, Clothing and POG_DENSE, where it reproduces the same baselines exactly).
+All seven differences are significant. Computed by `python -m analysis.tables results` (output `results/table.json`)
+from `runs/<dataset>` (TRIAD) and `runs/baselines/` (`python -m triad baselines`), with Holm applied over these seven
+tests.
 
 ## 3. Training-set size
 
@@ -175,5 +174,4 @@ the smallest p the sign-flip test can give here.
   many e-commerce and POG queries have one or two seeds, so on those datasets fewer queries changed than the rate
   suggests.
 
-Computed by bundlefuse `experiments/small_data/cold_sparse_check.py` (output
-`results/small_data/cold_sparse_check.json`).
+Computed by `python -m analysis.cold` (output `results/cold.json`).

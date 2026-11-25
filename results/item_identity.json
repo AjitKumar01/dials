@@ -1,0 +1,206 @@
+{
+ "note": "Item-identity ablation: does TRIAD get better if every item also gets its own learned parameters?\n\nTRIAD has no item IDs: every item is described by its features, labels, counts and partner history. This adds the\nper-item parameters that ID-based bundle models (CLHE, RaMen) rely on, to TRIAD, and trains\nwith the same loop and configuration (triad.train.fit, config_for):\n\n    id_vec       a learned vector e_c per item (n x d) inside the content features: z_c = normalize(x_c + MLP(x_c) + e_c)\n    id_vec_bias  id_vec plus a learned score b_c per item, added to the final score\n\nBoth start at zero, so the start is TRIAD's (the base model draws the same random numbers: the new parameters are\ncreated after it, as zeros). e_c trains with the content maps (shared_lr), b_c with the small parameters (fast_lr).\nThe baseline is runs/<dataset> (TRIAD, same seeds and configuration).\n\nTest NDCG@20 on clean test queries (mean of seeds 0-2 per query), paired tests (bootstrap + sign flips, one cluster\nper query), variant minus TRIAD, Holm over the 3 datasets within each variant. Writes results/item_identity.json;\nruns in runs/item_identity/<variant>/<dataset>/seed<s> (resumed if interrupted).\n\nPYTHONPATH=. python -m analysis.item_identity\n",
+ "rows": {
+  "electronic": {
+   "triad": {
+    "test": 0.34128283621919536,
+    "validation": 0.37825888445785916,
+    "epochs": [
+     5,
+     10,
+     5
+    ]
+   },
+   "id_vec": {
+    "test": 0.339401470468109,
+    "validation": 0.3731871975462997,
+    "epochs": [
+     2,
+     3,
+     2
+    ],
+    "parameters": 522008
+   },
+   "id_vec_bias": {
+    "test": 0.33500633490609477,
+    "validation": 0.3712040540462069,
+    "epochs": [
+     2,
+     3,
+     2
+    ],
+    "parameters": 525507
+   }
+  },
+  "food": {
+   "triad": {
+    "test": 0.4881188160816103,
+    "validation": 0.45067471414052074,
+    "epochs": [
+     3,
+     3,
+     7
+    ]
+   },
+   "id_vec": {
+    "test": 0.4742844950577046,
+    "validation": 0.4476573888112971,
+    "epochs": [
+     2,
+     3,
+     3
+    ],
+    "parameters": 556312
+   },
+   "id_vec_bias": {
+    "test": 0.4705125161522744,
+    "validation": 0.4476136912380371,
+    "epochs": [
+     2,
+     4,
+     3
+    ],
+    "parameters": 560079
+   }
+  },
+  "clothing": {
+   "triad": {
+    "test": 0.4509214627924409,
+    "validation": 0.5246027219921454,
+    "epochs": [
+     7,
+     11,
+     4
+    ]
+   },
+   "id_vec": {
+    "test": 0.4351302852121493,
+    "validation": 0.519962528918891,
+    "epochs": [
+     5,
+     4,
+     3
+    ],
+    "parameters": 648472
+   },
+   "id_vec_bias": {
+    "test": 0.44189714214526016,
+    "validation": 0.5183019756261157,
+    "epochs": [
+     3,
+     3,
+     3
+    ],
+    "parameters": 652959
+   }
+  }
+ },
+ "tests": {
+  "id_vec": [
+   {
+    "delta": -0.0018813657510863627,
+    "ci95": [
+     -0.013558188025278181,
+     0.010248151427038664
+    ],
+    "p_value": 0.7453254674532547,
+    "queries": 346,
+    "clusters": 346,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.17052023121387283,
+    "seed": 20261121,
+    "dataset": "electronic",
+    "p_holm": 0.7453254674532547,
+    "reject_05": false
+   },
+   {
+    "delta": -0.01383432102390575,
+    "ci95": [
+     -0.021792387070875222,
+     -0.006358765166739659
+    ],
+    "p_value": 0.0006999300069993001,
+    "queries": 353,
+    "clusters": 353,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.18696883852691218,
+    "seed": 20261121,
+    "dataset": "food",
+    "p_holm": 0.0020997900209979003,
+    "reject_05": true
+   },
+   {
+    "delta": -0.015791177580291554,
+    "ci95": [
+     -0.02572990532162474,
+     -0.005561397263438905
+    ],
+    "p_value": 0.0010998900109989002,
+    "queries": 371,
+    "clusters": 371,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.16981132075471697,
+    "seed": 20261121,
+    "dataset": "clothing",
+    "p_holm": 0.0021997800219978004,
+    "reject_05": true
+   }
+  ],
+  "id_vec_bias": [
+   {
+    "delta": -0.006276501313100584,
+    "ci95": [
+     -0.016256516491591686,
+     0.003901726031186348
+    ],
+    "p_value": 0.22007799220077992,
+    "queries": 346,
+    "clusters": 346,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.16184971098265896,
+    "seed": 20261121,
+    "dataset": "electronic",
+    "p_holm": 0.22007799220077992,
+    "reject_05": false
+   },
+   {
+    "delta": -0.01760629992933587,
+    "ci95": [
+     -0.028122217696515957,
+     -0.008231044268866181
+    ],
+    "p_value": 0.0007999200079992001,
+    "queries": 353,
+    "clusters": 353,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.20113314447592068,
+    "seed": 20261121,
+    "dataset": "food",
+    "p_holm": 0.0023997600239976003,
+    "reject_05": true
+   },
+   {
+    "delta": -0.00902432064718072,
+    "ci95": [
+     -0.01854810938670181,
+     0.0003368373931808374
+    ],
+    "p_value": 0.051794820517948204,
+    "queries": 371,
+    "clusters": 371,
+    "bootstrap": 2000,
+    "permutations": 10000,
+    "query_win_fraction": 0.16981132075471697,
+    "seed": 20261121,
+    "dataset": "clothing",
+    "p_holm": 0.10358964103589641,
+    "reject_05": false
+   }
+  ]
+ }
+}

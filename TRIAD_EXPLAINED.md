@@ -11,10 +11,11 @@ TRIAD_DESIGN.md has the full derivation and the exact tables. This document uses
 - `results/readings.json`, `results/readings_extra.json` and `results/taste.json`: readings of the trained models
   (seeds 0, 1 and 2) on validation queries, never on test (TRIAD_DESIGN.md §3).
 - `runs/pog_dense/seed0/model.pt`: the trained POG_DENSE model, for the worked example in Part 1.
-- bundlefuse `results/small_data/table_final.json` and `cold_sparse_check.json`: the test results (RESULTS.md §2 and
-  §6).
+- `results/table.json` and `results/cold.json`: the test results (RESULTS.md §2 and §6; `python -m analysis.tables
+  results` and `python -m analysis.cold`).
+- `results/item_identity.json` and `runs/item_identity/`: the item-identity test (`python -m analysis.item_identity`).
 
-`PYTHONPATH=. ../bundlefuse/.venv/bin/python -m analysis.explained_figures` redraws every figure in
+`PYTHONPATH=. python -m analysis.explained_figures` redraws every figure in
 `figures/explained/`.
 
 **The seven datasets fall into three domains.** The figures always list them in this order:

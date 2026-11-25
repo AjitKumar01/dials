@@ -3,3 +3,8 @@ numpy==2.5.4
 scipy==1.18.1
 scikit-learn==1.7.2
 torch==2.9.1
+# BLIP title features of Electronic, Food and Clothing (computed once into cache/blip/)
+transformers==5.5.4
+# figures and tests
+matplotlib==3.10.7
+pytest==9.2.0

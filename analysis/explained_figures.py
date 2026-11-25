@@ -1,13 +1,14 @@
 """Figures for TRIAD_EXPLAINED.md, drawn from saved results only (nothing is retrained).
 
   results/readings.json, results/readings_extra.json, results/taste.json   (python -m analysis.readings, extra, taste)
-  ../bundlefuse/results/small_data/table_final.json, cold_sparse_check.json  (main result; cold and seed-removal checks)
+  results/table.json, results/cold.json                                      (python -m analysis.tables results, analysis.cold)
+  results/item_identity.json, runs/item_identity/                            (python -m analysis.item_identity)
   runs/pog_dense/seed0/model.pt                                              (the worked example, one real test query)
 
 The frequency groups of the prior figure are recomputed from the data with the rule of analysis/readings.py and checked
 against the saved base rates. Writes figures/explained/*.png.
 
-PYTHONPATH=. ../bundlefuse/.venv/bin/python -m analysis.explained_figures
+PYTHONPATH=. python -m analysis.explained_figures
 """
 import triad  # pins BLAS threads before numpy loads
 import json, math
@@ -20,7 +21,6 @@ import matplotlib.pyplot as plt
 from triad import data, train as T
 
 CACHE = Path('cache');RUNS = Path('runs');R = Path('results');OUT = Path('figures/explained')
-BF = Path('../bundlefuse/results/small_data')
 NAMES = ('electronic', 'food', 'clothing', 'pog_dense', 'pog', 'spotify_sparse', 'spotify')
 LABEL = dict(electronic='Electronic', food='Food', clothing='Clothing', pog_dense='POG_DENSE', pog='POG',
              spotify_sparse='Spotify_sparse', spotify='Spotify')
@@ -261,8 +261,8 @@ def taste():
 # 7. Results: lead over the best simple baseline, overall, warm and cold; seeds removed.
 # ---------------------------------------------------------------------------------------------------------------------
 def results():
-    main = {t['dataset']: t for t in json.loads((BF/'table_final.json').read_text())['tests'] if t['versus'] == 'best_simple'}
-    cs = {t['key']: t for t in json.loads((BF/'cold_sparse_check.json').read_text())['tests']}
+    main = {t['dataset']: t for t in json.loads((R/'table.json').read_text())['tests']}
+    cs = {t['key']: t for t in json.loads((R/'cold.json').read_text())['tests']}
     for fname, series, title in (
             ('results_cold.png', (('all clean test queries', BLUE, lambda n: main[n]), ('warm queries', ORANGE, lambda n: cs[f'{n}:warm']),
                                   ('cold queries', AQUA, lambda n: cs[f'{n}:cold'])),
@@ -281,9 +281,9 @@ def results():
 
 
 # ---------------------------------------------------------------------------------------------------------------------
-# 8. Item identities added to TRIAD (bundlefuse experiments/small_data/id_ablation.py): results and training curves.
+# 8. Item identities added to TRIAD (analysis/item_identity.py): results and training curves.
 # ---------------------------------------------------------------------------------------------------------------------
-ID = Path('../bundlefuse/results/small_data/id_ablation');ECOM = ('electronic', 'food', 'clothing')
+ID = RUNS/'item_identity';ECOM = ('electronic', 'food', 'clothing')
 VARIANT = (('TRIAD', 'TRIAD', BLUE), ('id_vec', 'A: + a vector per item', ORANGE), ('id_vec_bias', 'B: + a vector and a score per item', AQUA))
 
 
@@ -294,7 +294,7 @@ def history(variant, name, seed):
 
 
 def identity():
-    r = json.loads((BF/'id_ablation.json').read_text());tests = r['tests']
+    r = json.loads((R/'item_identity.json').read_text());tests = r['tests']
     fig, ax = plt.subplots(figsize=(6.4, 3.0))
     for k, (v, text, color) in enumerate(VARIANT[1:]):
         for i, t in enumerate(tests[v]):

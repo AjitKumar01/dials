@@ -12,7 +12,6 @@ runs_v1_features/
 *.aux
 *.log
 # paper previews and build files
-paper/figs/*_prev*.png
 *.out
 runs_tfidf/
 runs_dials/

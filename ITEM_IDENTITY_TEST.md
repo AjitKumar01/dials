@@ -4,8 +4,8 @@ The paper's principle is that bundle completion rests on **relations between ite
 This document explains, one step at a time, the experiment that tests this directly: give TRIAD per-item parameters
 and see what happens.
 
-- Code: bundlefuse `experiments/small_data/id_ablation.py`
-- Results: bundlefuse `results/small_data/id_ablation.json`, and the runs in `results/small_data/id_ablation/`
+- Code: `analysis/item_identity.py`
+- Results: `results/item_identity.json`, and the runs in `runs/item_identity/`
 - Figures: `figures/explained/identity_results.png` and `identity_curves.png`, drawn by
   `python -m analysis.explained_figures` from these files
 
@@ -162,8 +162,8 @@ This is the likely mechanism. It fits the curves in Step 7, but it was not measu
 ## Step 10. How to rerun it
 
 ```bash
-cd ../bundlefuse && PYTHONPATH=.:../dials .venv/bin/python -m experiments.small_data.id_ablation
-cd ../dials && PYTHONPATH=. ../bundlefuse/.venv/bin/python -m analysis.explained_figures
+PYTHONPATH=. python -m analysis.item_identity
+PYTHONPATH=. python -m analysis.explained_figures
 ```
 
 The first command trains the 18 runs (2 variants × 3 datasets × 3 seeds) and writes the results file. Finished runs

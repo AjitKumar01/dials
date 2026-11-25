@@ -8,7 +8,7 @@ data_facts in analysis/readings.py. No model is trained or used: only training c
   cosine_recall20           Recall@20 when the candidates are ranked by cosine between the mean seed feature and the
                             candidate's feature (rows of X scaled to unit length)
 
-Writes results/data_facts_test.json.   PYTHONPATH=. ../bundlefuse/.venv/bin/python -m analysis.data_facts_test
+Writes results/data_facts_test.json.   PYTHONPATH=. python -m analysis.data_facts_test
 """
 import triad  # pins BLAS threads before numpy loads
 import json

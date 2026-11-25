@@ -537,12 +537,9 @@ a good early model from a bad one, and test NDCG@20 varied by up to .06 between 
 chosen on validation (five seeds on the three sets), not on test. POG_DENSE, POG and the Spotify sets use the default
 rates.
 
-**Where the numbers come from:** the table was computed by `experiments/small_data/table_final.py` in the bundlefuse
-repository (output `results/small_data/table_final.json`), from `runs/<dataset>` (TRIAD), the validation-tuned simple
-baselines of bundlefuse `results/fair_prior/`, with Holm applied over the seven tests. `python -m analysis.tables
-results` computes the same table from this repository once `python -m triad baselines` has written `runs/baselines/`
-for all seven datasets (so far it has been run for Electronic, Food, Clothing and POG_DENSE, where it reproduces the
-same baselines exactly). TRIAD's e-commerce runs were trained with this repository's code (`python -m triad train`).
+**Where the numbers come from:** `python -m analysis.tables results` (output `results/table.json`), from
+`runs/<dataset>` (TRIAD) and the validation-tuned simple baselines of `runs/baselines/` (`python -m triad
+baselines`), with Holm applied over the seven tests. TRIAD's e-commerce runs were trained with this repository's code (`python -m triad train`).
 The POG_DENSE, POG and Spotify runs were trained before this repository took the model over, by earlier scripts with
 the same model and training loop; `python -m triad test` reproduces their test numbers exactly.
 
