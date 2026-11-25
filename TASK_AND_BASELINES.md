@@ -6,8 +6,8 @@ This document defines the task precisely, then describes each compared method fr
 - the simple baselines: our own implementation, run with the shared evaluation. `triad/baselines.py` holds the five
   that enter the comparison (ItemKNN, RP3β, EASE, the content + ItemKNN blend and the label + ItemKNN + content rule,
   each optionally with a popularity prior; `python -m triad baselines`). Popularity, co-occurrence, GF-CF, SGFCF and
-  iALS (§2.3, §2.4, §2.8 to §2.10) were run in earlier experiments (branch `archive/original-triad` and the
-  experiment repository) and were never the best simple baseline on validation;
+  iALS (§2.3, §2.4, §2.8 to §2.10) were run in earlier experiments (in the experiment repository) and were never
+  the best simple baseline on validation;
 - TRIAD: `triad/model.py` and `triad/train.py` (ARCHITECTURE.md).
 
 Every method is written in the same notation, so the differences are visible as differences in the formulas.
@@ -528,7 +528,7 @@ the label rules (those enter in the final comparison, `TRIAD_DESIGN.md` §7, whe
 | Clothing | .003 | .177 | .193 | .193 | .201 | .192 | .191 | .175 | **.359** | .451 |
 | POG_DENSE | .156 | .240 | .208 | **.241** | .228 | .230 | .237 | .191 | .208 | .280 |
 | POG | .0068 | .0195 | .0174 | .0193 | **.0198** | .0165 | .0183 | .0151 | .0174 | .0308 |
-| Spotify_sparse | .006 | .139 | .148 | .149 | n/a | .099 | .138 | .130 | **.153** | .257 |
+| Spotify_sparse | .006 | .139 | .148 | .149 | n/a | .099 | .138 | .130 | **.153** | .256 |
 | Spotify | .022 | .160 | .219 | .210 | n/a | .173 | .195 | .210 | **.223** | .282 |
 
 - **Bold** marks the best of these by validation.
@@ -723,38 +723,39 @@ $$
 **Labels:**
 
 $$
-L_l(S,c) = \delta_l\big(t_{g(c)}(S), |S|, |g(c)|\big)\,[t_{g(c)}(S)>0].
+L_l(S,c) = \delta_l\big(\log(1+m),\ \log|S|,\ \log(1+n_{g(c)})\big)\,[m>0],\qquad m=t_{g(c)}(S).
 $$
 
-- $t(S)$ counts the seeds' labels, and $g(c)$ is the candidate's label.
+- $t(S)$ counts the seeds' labels, $g(c)$ is the candidate's label, $m$ is the number of seeds that share it, and
+  $n_{g(c)}$ is the number of catalogue items with that label.
 - **$\delta_l$** (a small MLP) scores a *shared* label, and its **sign is learned**. It comes out negative on POG
   (avoid the seed's category in an outfit) and positive on Spotify (same artist).
 - Because it reads only labels, it carries over to items with no history of their own.
 - **Which different labels go together** (boots → handbag) is not modelled here. The graph term holds it item by item.
-  An earlier version, DIALS, added a learned low-rank label-to-label relation; retrained without it, test NDCG@20
-  changed by at most .004 on every dataset, so it was removed (ARCHITECTURE.md §15).
+  A tested variant added a learned low-rank label-to-label relation; retrained without it, test NDCG@20 changed by
+  at most .004 on every dataset, so it was not kept (ARCHITECTURE.md §15).
 
 **Graph:**
 
 $$
-G = \theta\log\Big(1+\sum_{s\in S} C_{sc}\,f_s^{-\alpha} f_c^{-\beta}\Big) + \rho(f_c).
+G = \theta\log\Big(1+\sum_{s\in S} C_{sc}\,\deg_s^{-\alpha} \deg_c^{-\beta}\Big) + \rho\big(\log(1+f_c)\big).
 $$
 
-- These are the damped co-occurrence counts, with **learned** degree exponents $\alpha$ and $\beta$; the item-to-item
-  baselines fix theirs.
+- These are the damped co-occurrence counts, with **learned** degree exponents $\alpha$ and $\beta$ on the partner mass
+  $\deg_c=\sum_s C_{sc}$; the item-to-item baselines fix theirs.
 - $\rho$ is a learned popularity prior.
 
 **Gate:**
 
 $$
-w(S) = \mathrm{softplus}\big(\mathrm{MLP}(\log|S|,\ \text{mean seed }\log f,\ \text{share of seeds never seen})\big).
+w(S) = \mathrm{softplus}\big(\mathrm{MLP}(\log|S|,\ \text{mean seed }\log(1+f),\ \text{share of seeds never bundled})\big).
 $$
 
 It sets one weight per term for each query, after each term is divided by its largest absolute value over the
-catalogue. On e-commerce and Spotify it raises content's weight by 36% to 82% for queries whose seeds were never
+catalogue. On e-commerce and Spotify it raises content's weight by 36% to 78% for queries whose seeds were never
 bundled (`TRIAD_DESIGN.md` §3.8).
 
-**Start:** before training, TRIAD is the simple scorer: cosine content, cosine-normalized counts ($\alpha=\beta=\tfrac12$),
+**Start:** before training, TRIAD is a simple scorer: cosine content, cosine-normalized counts ($\alpha=\beta=\tfrac12$),
 no label rule, no prior, equal weights. Training moves each part away from it only where the data supports it.
 
 **Training** (`triad/train.py`):
@@ -792,11 +793,9 @@ Test NDCG@20, on identical splits and features, with each method run from its ow
 | Clothing | .196 | .190 | **.451** | +.255 |
 | POG_DENSE | .248 | | **.280** | +.032 |
 | POG | .0172 | | **.0308** | +.014 |
-| Spotify_sparse | .115 | | **.257** | +.142 |
+| Spotify_sparse | .115 | | **.256** | +.141 |
 
-- The paired tests were run against the original TRIAD (.335, .474, .439, .278, .0306, .256): all 18 had $p=.002$
-  (Holm over 20). TRIAD now scores higher than the original on every row. RaMen was rerun on the three e-commerce
-  datasets only.
+- TRIAD scores higher than CLHE and RaMen on every row. RaMen was rerun on the three e-commerce datasets only.
 - **Where TRIAD gains most:** on items and queries without history, because content and labels are separate terms
   that the gate can rely on.
 - **It isn't just the gate:** with the per-query gate fixed at its average weights, TRIAD loses 0 to 13% of its

@@ -1,0 +1,97 @@
+{
+ "note": "Facts about the data on the clean test queries (the queries the results are reported on), with the definitions of\ndata_facts in analysis/readings.py. No model is trained or used: only training counts, labels and item features.\n\n  queries_with_unseen_seed  share of queries with at least one seed that no training bundle holds\n  queries_all_unseen        share of queries in which every seed is in no training bundle\n  labels[l]                 targets_sharing: mean over queries of the share of hidden items whose level-l label is a\n                            seed's label; catalogue_sharing: the same share among the non-seed catalogue items\n  cosine_recall20           Recall@20 when the candidates are ranked by cosine between the mean seed feature and the\n                            candidate's feature (rows of X scaled to unit length)\n\nWrites results/data_facts_test.json.   PYTHONPATH=. ../bundlefuse/.venv/bin/python -m analysis.data_facts_test\n",
+ "datasets": {
+  "electronic": {
+   "queries": 346,
+   "queries_with_unseen_seed": 0.5433526011560693,
+   "queries_all_unseen": 0.3236994219653179,
+   "labels": [
+    {
+     "targets_sharing": 0.18289980732177263,
+     "catalogue_sharing": 0.015992834964571486
+    }
+   ],
+   "cosine_recall20": 0.17316955684007707
+  },
+  "food": {
+   "queries": 353,
+   "queries_with_unseen_seed": 0.5977337110481586,
+   "queries_all_unseen": 0.3654390934844193,
+   "labels": [
+    {
+     "targets_sharing": 0.26591123701605285,
+     "catalogue_sharing": 0.014014803099383256
+    }
+   ],
+   "cosine_recall20": 0.37620396600566575
+  },
+  "clothing": {
+   "queries": 371,
+   "queries_with_unseen_seed": 0.7466307277628033,
+   "queries_all_unseen": 0.6118598382749326,
+   "labels": [
+    {
+     "targets_sharing": 0.18571428571428572,
+     "catalogue_sharing": 0.003666106875612892
+    }
+   ],
+   "cosine_recall20": 0.3600179694519317
+  },
+  "pog_dense": {
+   "queries": 5547,
+   "queries_with_unseen_seed": 0.42653686677483327,
+   "queries_all_unseen": 0.05444384351901929,
+   "labels": [
+    {
+     "targets_sharing": 0.0003004627125773691,
+     "catalogue_sharing": 0.1267646744323937
+    }
+   ],
+   "cosine_recall20": 0.0003305089838351061
+  },
+  "pog": {
+   "queries": 3995,
+   "queries_with_unseen_seed": 0.7043804755944931,
+   "queries_all_unseen": 0.49261576971214016,
+   "labels": [
+    {
+     "targets_sharing": 0.001042970379641218,
+     "catalogue_sharing": 0.07324946689643069
+    }
+   ],
+   "cosine_recall20": 0.0003754693366708385
+  },
+  "spotify_sparse": {
+   "queries": 2497,
+   "queries_with_unseen_seed": 0.7665198237885462,
+   "queries_all_unseen": 0.005606728073688426,
+   "labels": [
+    {
+     "targets_sharing": 0.36060210617248584,
+     "catalogue_sharing": 0.002247146883231771
+    },
+    {
+     "targets_sharing": 0.2150596219654719,
+     "catalogue_sharing": 0.00036942278673023017
+    }
+   ],
+   "cosine_recall20": 0.018781046895614877
+  },
+  "spotify": {
+   "queries": 3995,
+   "queries_with_unseen_seed": 0.644055068836045,
+   "queries_all_unseen": 0.005506883604505632,
+   "labels": [
+    {
+     "targets_sharing": 0.37630641692839356,
+     "catalogue_sharing": 0.004005664746088227
+    },
+    {
+     "targets_sharing": 0.21172287167277953,
+     "catalogue_sharing": 0.0006117821806625565
+    }
+   ],
+   "cosine_recall20": 0.014061899421945042
+  }
+ }
+}

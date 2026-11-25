@@ -11,14 +11,15 @@ the query's seed indicator (1 x n), X for the training bundle-item incidence mat
   ease               y B, B the EASE item-item solution with ridge l2 in 50 ... 3000 (only when at most 40,000 items were
                      bundled in training: B is dense)
   hybrid             content + ItemKNN: (1 - w) itemknn + w y F F^T, both divided by their largest absolute value per
-                     query; ItemKNN at its own validation choice; w in 0, .1, ..., 1
+                     query; ItemKNN at its own validation choice; w in 0, .1, .2, .3, .5, .7, .9, 1
   label_knn_content  label + ItemKNN + content (labels: category; Spotify: artist and album):
                        label score: samelabel  sum_l a_l log(1 + m_l) + gamma log(1 + f_c), m_l = seeds sharing c's label
                                     transition sum_l a_l log(eps + t_l(S)/|S| T_l[:, g_l(c)]) + gamma log P(c | g(c)), T_l
                                                the row-normalized label-by-label co-occurrence, P(c | g) = (f_c + 1) /
                                                (F_g + |g|) the item's add-one share of its label's training frequency
                        the better of the two (on validation), min-max scaled per query, mixed with max-abs scaled
-                       ItemKNN: (1 - w) itemknn + w label; then + v times the max-abs scaled content score y F F^T
+                       ItemKNN: (1 - w) itemknn + w label (w as for hybrid); then + v times the max-abs scaled
+                       content score y F F^T (v in 0, .05, .1, .2, .3, .5)
 
 Popularity prior (optional, as TRIAD learns one). The base rate b(f) of the validation targets per frequency bin (0, 1,
 2, 3-4, 5-9, 10-19, 20-49, 50+): b = log((targets in bin + 1) / (targets + 8)) - log(items in bin / n). With the prior,
@@ -26,9 +27,21 @@ score' = maxabs(score) + lambda b(f_c), lambda in 0, .01, .03, .1, .3, 1, 3 chos
 blends' mixing weight (w for hybrid; v for label_knn_content, in 0, .05, .1, .2, .3, .5, .7, 1, 1.5, 2, 3); lambda = 0
 is no prior.
 
+  link               LINK (Choi et al., SIGIR 2025), the closed-form linear item-item model, with bundles as unordered
+                     sessions. LIS: B^S = I - P diag(gamma), P = (X^T X + l2 I)^-1, gamma_j = l2 if 1 - l2 P_jj <= xi
+                     else (1 - xi) / P_jj; self-distillation X' = X ((1 - beta) I + beta B^S), the same solve on X'.
+                     LINK's past -> future pairs become seed -> hidden pairs: each training bundle without one item
+                     (Y, rows normalized) predicts that item (Z). B = (alpha X~'^T X~' + (1 - alpha) Y^T Y + lam I)^-1
+                     (alpha X~'^T X~' + (1 - alpha) Y^T Z + lam T), X~' = X' with rows normalized; score y B. The
+                     teacher T is LINK's neural model in the paper; here the content teacher softmax(F F^T / tau) per row
+                     (tau in .05, .1, .2, .5) or none (T = 0). LIS (l2 in 50 ... 3000, beta in 0, .25, .5, .75, xi in 0,
+                     .2) is chosen first on validation, then alpha in 0, .25, .5, .75, 1, lam in .1, 1, 10, 100 and T.
+                     Dense n x n: run only when the catalogue has at most 40,000 items (python -m triad link).
+
 The best simple baseline of a dataset is the method (with its prior choice) with the highest validation NDCG@20.
 
 python -m triad baselines [--datasets NAME ...]   writes runs/baselines/<dataset>.json
+python -m triad link [--datasets NAME ...]        adds LINK to runs/baselines/<dataset>.json
 """
 import numpy as np
 import scipy.sparse as sp
@@ -126,8 +139,64 @@ class Baselines:
             B[np.diag_indices_from(B)]=0
             m=(active,B.astype(np.float32,copy=False))
             self.cache={k:v for k,v in self.cache.items() if k[0]!='ease'}   # keep one dense EASE matrix at a time
+        elif name=='link_lis':
+            m=self.link_lis(p['l2'],p['beta'],p['xi'])[0]
+        elif name=='link':
+            m=self.link(p)
+        if name in ('link_lis','link'):
+            self.cache={k:v for k,v in self.cache.items() if k[0] not in ('link_lis','link')}   # one dense matrix at a time
         self.cache[key]=m
         return m
+
+    # ---- LINK --------------------------------------------------------------------------------------------------------
+    @staticmethod
+    def bounded_ease(G,l2,xi):
+        """argmin ||X - XB||^2 + l2 ||B||^2 s.t. diag(B) <= xi, from the Gram matrix G = X^T X (LINK, eq. of LIS)."""
+        P=np.linalg.inv(G+l2*np.eye(len(G)))
+        d=np.diag(P)
+        gamma=np.where(1-l2*d<=xi,l2,(1-xi)/d)
+        B=-P*gamma[None,:]
+        B[np.diag_indices_from(B)]+=1
+        return B
+
+    def link_lis(self,l2,beta,xi):
+        """LIS: self-distilled bounded EASE. Returns B^LIS and the distilled bundles X'."""
+        key=('lis',l2,beta,xi)
+        if key not in self.cache:
+            X=self.X.toarray().astype(np.float64)
+            G=X.T@X
+            M=(1-beta)*np.eye(self.n)+beta*self.bounded_ease(G,l2,xi)
+            self.cache={k:v for k,v in self.cache.items() if k[0]!='lis'}
+            self.cache[key]=(self.bounded_ease(M.T@G@M,l2,xi),X@M)
+        return self.cache[key]
+
+    def seed_hidden(self):
+        """Y^T Y and Y^T Z over all (bundle without item j -> j) pairs, Y rows normalized, in closed form from X."""
+        if 'seed_hidden' not in self.cache:
+            k=np.asarray(self.X.sum(1)).ravel()
+            ok=k>=2
+            X=self.X[ok];k=k[ok]
+            w,v,u=(k-2)/(k-1)**2,1/(k-1)**2,1/(k-1)
+            YY=(X.T@sp.diags(w)@X).toarray()+np.diag(np.asarray(X.T@v).ravel())
+            YZ=(X.T@sp.diags(u)@X).toarray()-np.diag(np.asarray(X.T@u).ravel())
+            self.cache['seed_hidden']=(YY.astype(np.float64),YZ.astype(np.float64))
+        return self.cache['seed_hidden']
+
+    def link(self,p):
+        """LINK's aggregated closed form with the LIS rows, the seed -> hidden rows and the teacher T."""
+        _,Xd=self.link_lis(p['l2'],p['beta'],p['xi'])
+        rows=Xd.sum(1,keepdims=True)
+        Xn=Xd/np.where(np.abs(rows)>1e-12,rows,1.)
+        L=Xn.T@Xn
+        YY,YZ=self.seed_hidden()
+        T=np.zeros((self.n,self.n))
+        if p['tau'] is not None:
+            S=(self.features@self.features.T).astype(np.float64)/p['tau']
+            S-=S.max(1,keepdims=True)
+            T=np.exp(S)
+            T/=T.sum(1,keepdims=True)
+        a,lam=p['alpha'],p['lam']
+        return np.linalg.solve(a*L+(1-a)*YY+lam*np.eye(self.n),a*L+(1-a)*YZ+lam*T).astype(np.float32)
 
     # ---- scores ----------------------------------------------------------------------------------------------------
     def label_scores(self,name,p,y,size):
@@ -153,6 +222,8 @@ class Baselines:
             out=np.zeros((len(seeds),self.n),np.float32)
             out[:,active]=np.asarray(y[:,active].todense())@B
             return out
+        if name in ('link_lis','link'):
+            return np.asarray(y@self.matrix(name,p))
         content=(y@self.features)@self.features.T
         if name=='hybrid':
             knn=np.asarray((y@self.matrix('itemknn',p['itemknn'])).todense())
@@ -259,6 +330,48 @@ def run(ds,log=print):
             f'{report["methods"][name]["prior"]["test"]["ndcg20"]:.4f}')
 
     # The best simple baseline: highest validation NDCG@20 over methods, with or without the prior.
+    options=[(m,v['validation_ndcg20'],False) for m,v in report['methods'].items()]
+    options+=[(m,v['prior']['validation_ndcg20'],True) for m,v in report['methods'].items()]
+    name,_,prior=max(options,key=lambda o:(o[1],not o[2]))
+    chosen=report['methods'][name]['prior'] if prior else report['methods'][name]
+    report['best_simple']=dict(method=name+('+prior' if prior else ''),test=chosen['test'])
+    return report
+
+
+def run_link(ds,report,log=print):
+    """Tune LINK on validation (LIS first, then the aggregation and teacher), without and with the prior as for the other
+    methods; score test once. Adds report['methods']['link'] and re-chooses the best simple baseline."""
+    model=Baselines(ds)
+
+    def tune(name,grid):
+        rows=[dict(params=p,ndcg20=mean(model.evaluate(name,p,ds.val_pairs))['ndcg20']) for p in grid]
+        report['validation'][name]=rows
+        best=max(rows,key=lambda r:r['ndcg20'])
+        log(f'{ds.name} {name}: validation N20 {best["ndcg20"]:.4f} at {best["params"]}')
+        return best['params'],best['ndcg20']
+
+    lis,_=tune('link_lis',[dict(l2=l,beta=b,xi=x) for l in (50.,200.,500.,1000.,3000.) for b in (0.,.25,.5,.75)
+                            for x in (0.,.2)])
+    params,validation=tune('link',[dict(lis,alpha=a,lam=m,tau=t) for a in (0.,.25,.5,.75,1.) for m in (.1,1.,10.,100.)
+                                   for t in (None,.05,.1,.2,.5)])
+    model.prior=base_rate(model.f,ds.val_pairs)
+    rows=[]
+    for lam in LAMBDAS:
+        model.lam=lam
+        rows.append((mean(model.evaluate('link',params,ds.val_pairs))['ndcg20'],lam))
+    best=max(rows,key=lambda r:r[0])
+    model.lam=0.
+    plain=model.evaluate('link',params,ds.test_pairs)
+    model.lam=best[1]
+    prior=model.evaluate('link',params,ds.test_pairs)
+    model.lam=0.
+    report['methods']['link']=dict(
+        params=params,validation_ndcg20=validation,
+        test=mean(plain,ds.clean_test),queries=[[plain[i]['recall20'],plain[i]['ndcg20']] for i in ds.clean_test],
+        prior=dict(lam=best[1],params=params,validation_ndcg20=best[0],test=mean(prior,ds.clean_test),
+                   queries=[[prior[i]['recall20'],prior[i]['ndcg20']] for i in ds.clean_test]))
+    log(f'{ds.name} link: test N20 {report["methods"]["link"]["test"]["ndcg20"]:.4f}; with prior (lambda {best[1]}) '
+        f'{report["methods"]["link"]["prior"]["test"]["ndcg20"]:.4f}')
     options=[(m,v['validation_ndcg20'],False) for m,v in report['methods'].items()]
     options+=[(m,v['prior']['validation_ndcg20'],True) for m,v in report['methods'].items()]
     name,_,prior=max(options,key=lambda o:(o[1],not o[2]))

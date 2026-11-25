@@ -88,6 +88,24 @@ def baselines(args):
         log(f'{name} best simple {report["best_simple"]["method"]}: clean test N20={report["best_simple"]["test"]["ndcg20"]:.4f}')
 
 
+def link(args):
+    """Add LINK (triad.baselines.run_link) to the simple-baseline report of each dataset."""
+    from .baselines import run_link,EASE_LIMIT
+    for name in args.datasets:
+        path=RUNS/'baselines'/f'{name}.json'
+        report=json.loads(path.read_text())
+        if 'link' in report['methods']:
+            log(f'{name}: LINK exists, skipped')
+            continue
+        ds=data.load(name,CACHE)
+        if ds.n_items>EASE_LIMIT:
+            log(f'{name}: {ds.n_items} items, LINK skipped (dense n x n)')
+            continue
+        report=run_link(ds,report,log=log)
+        write_json(path,report)
+        log(f'{name} best simple {report["best_simple"]["method"]}: clean test N20={report["best_simple"]["test"]["ndcg20"]:.4f}')
+
+
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__,formatter_class=argparse.RawDescriptionHelpFormatter)
     sub=p.add_subparsers(required=True)
@@ -108,6 +126,11 @@ if __name__=='__main__':
     # python -m triad baselines [--datasets NAME ...]
     t=sub.add_parser('baselines')
     t.set_defaults(run=baselines)
+    t.add_argument('--datasets',nargs='+',default=data.DATASETS,choices=data.DATASETS)
+
+    # python -m triad link [--datasets NAME ...]
+    t=sub.add_parser('link')
+    t.set_defaults(run=link)
     t.add_argument('--datasets',nargs='+',default=data.DATASETS,choices=data.DATASETS)
 
     args=p.parse_args()

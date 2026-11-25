@@ -1,4 +1,5 @@
-"""What TRIAD learns: its trained parameters read on the first 512 validation queries of seeds 0-2 (never test), full
+"""What TRIAD learns: its trained parameters read on validation queries of seeds 0-2 (never test): the first 512 for the
+gate and influence readings, the first 1,000 for everything else (all of them on e-commerce), full
 training data. Models: runs/<dataset>/seed<s>/model.pt (python -m triad train). Writes results/readings.json.
 
 Per seed:

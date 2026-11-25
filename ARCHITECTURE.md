@@ -391,21 +391,21 @@ moved so far in its first one or two epochs that validation could not tell a goo
 five seeds, test NDCG@20 on Food ranged from .425 to .488. The halved rates were chosen on validation (five seeds on
 Electronic, Food and Clothing), not on test.
 
-The next two decisions were measured on the original TRIAD (rank-64 maps, raw-count start), before the changes above.
+The next two decisions were measured during development, before the changes above.
 
-**No second graph hop.** An earlier version added a second hop, $\theta_2 \log\big(1 + [a A']_c\big)$, where $a$ is
+**No second graph hop.** A tested variant added a second hop, $\theta_2 \log\big(1 + [a A']_c\big)$, where $a$ is
 the vector of discounted first-hop weights and $A'$ a degree-discounted $N$ approximated by a cross-fitted rank-64
 SVD. It was meant to reach partners of partners. Retrained without it (three seeds, Holm over 14 tests), test
 NDCG@20 was:
 - level on Electronic, Food, Clothing, POG_DENSE and Spotify_sparse;
 - slightly better without it on POG (+.0007);
-- .005 lower without it on full Spotify (.2865 → .2816, significant; these runs used the earlier item features, RESULTS.md section 6).
+- .005 lower without it on full Spotify (.2865 → .2816, significant; these runs used an earlier set of item features).
 
 Removing it drops six rank-64 SVDs of the $n \times n$ graph (about 2.5 minutes and 0.8 GB on Spotify), made POG
 inference about 3× faster in our timings, and leaves one graph term to explain. It was removed on that trade-off,
 accepting the Spotify cost.
 
-**No label-to-label relation.** An earlier version, DIALS, added a second label part,
+**No label-to-label relation.** A tested variant added a second label part,
 $\tfrac{1}{\lvert S\rvert}\, t_l(S)^\top P_l M_l\, Q_l[g_l(c)]^\top$: fixed factors $P_l, Q_l$ from a rank-16 SVD of the
 normalized label co-occurrence $\Gamma_l^\top N \Gamma_l$, and a learned $16 \times 16$ matrix $M_l$. Because the SVD saw
 every training bundle, training used factors cross-fitted over five folds. Retrained without that part (three seeds,
@@ -418,7 +418,7 @@ ranks 4, 64 and 128 instead of 16, validation NDCG@20 stayed within ±.006 on El
 removed on that evidence, together with the cross-fitting, the six label SVDs per level and 256 parameters per level,
 accepting the POG_DENSE cost. Section 7 explains why the graph term already covers what it modelled.
 
-**Leave-one-out without random history masking.** An earlier version also hid a random 25% of item histories during
+**Leave-one-out without random history masking.** A tested variant also hid a random 25% of item histories during
 training. Leave-one-out alone was compared with leave-one-out plus that masking on validation, and was kept.
 
 **Full-catalogue loss.** Every non-member is a negative, so there is no sampling distribution to tune and no
@@ -431,6 +431,7 @@ mismatch between training and full-catalogue evaluation.
       data.py        Dataset; load(name): splits, features (X), labels (Γ), clean test queries
                      load_supplied: POG / Spotify supplied splits; projected_features: released modalities → 128 dims
                      load_resplit:  Electronic / Food / Clothing: deduplicate, BLIP title features, 70/10/20 split, hide half
+                     load_baskets:  Dunnhumby grocery baskets (loadable, not used in the reported results)
       model.py       pair_counts (N, deg, f)
                      TRIAD: content_scores (§6), label_scores (§7), graph_scores (§8), gate_weights (§9), forward (§5)
       train.py       CONFIG, config_for; build / load; hide, loss, fit (§10)

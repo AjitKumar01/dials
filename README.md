@@ -11,6 +11,10 @@ the gate) starts at that simple choice, and training moves it only where the dat
 
 - [TRIAD_DESIGN.md](TRIAD_DESIGN.md) builds the model step by step from the simple scorer and reads what each part
   learned, with the evidence in the trained parameters.
+- [TRIAD_EXPLAINED.md](TRIAD_EXPLAINED.md) explains the same with figures: one real query scored step by step, what
+  each part learned, and the results.
+- [ITEM_IDENTITY_TEST.md](ITEM_IDENTITY_TEST.md) explains, step by step, the test that adds per-item parameters to
+  TRIAD and what it shows.
 - [ARCHITECTURE.md](ARCHITECTURE.md) is the technical description: every component, its shapes and starting values,
   training, leakage control, evaluation and cost.
 - [TASK_AND_BASELINES.md](TASK_AND_BASELINES.md) defines the task and describes the simple baselines, CLHE, RaMen and
@@ -23,8 +27,8 @@ For seeds S and candidate item c, with each term divided by its largest absolute
 
     s(c | S) = w_C(S) C^(S,c) + Σ_l w_l(S) L_l^(S,c) + w_G(S) G^(S,c)
 
-- **Content** `C = z̄ᵀ M_zz z_c + z̄ᵀ M_zh h_c + h̄ᵀ M_hz z_c + h̄ᵀ M_hh h_c`, with learned 128 × 128 matrices
-  `M = Aᵀ B`, refined features `z = normalize(x + MLP(x))` and partner histories `h` (the average feature of an item's
+- **Content** `C = z̄ᵀ M_zz z_c + z̄ᵀ M_zh h_c + h̄ᵀ M_hz z_c + h̄ᵀ M_hh h_c`, built from four learned
+  128 × 128 matrices (`M_zz = A_zᵀB_z`, `M_zh = A_zᵀB_h`, `M_hz = A_hᵀB_z`, `M_hh = A_hᵀB_h`), refined features `z = normalize(x + MLP(x))` and partner histories `h` (the average feature of an item's
   past bundle partners). It starts as `10 x̄ᵀ x_c`: cosine.
 - **Labels**, one term per attribute level (category; artist and album): `L_l = δ_l(log(1+m), log|S|, log(1+n_g))`
   when `m > 0` seeds share the candidate's label, a small MLP whose sign is learned. It starts at 0.
@@ -94,7 +98,8 @@ Details: `triad/data.py`.
 - `test` scores each selected model on the test queries once.
 - `baselines` tunes the simple baselines on validation and scores test once (`runs/baselines/<dataset>.json`).
 - The analyses behind TRIAD_DESIGN.md and RESULTS.md: `python -m analysis.readings`, `analysis.extra`,
-  `analysis.taste` and `analysis.tables` (outputs in `results/` and `figures/design/`).
+  `analysis.taste` and `analysis.tables` (outputs in `results/` and `figures/design/`). `analysis.explained_figures`
+  draws the figures of TRIAD_EXPLAINED.md (`figures/explained/`) from these outputs.
 
 **Reproducibility.** CPU training is deterministic: fixed seeds, `torch.use_deterministic_algorithms`, and one thread
 by default. The truncated SVDs behind the features are bit-reproducible only at a fixed BLAS thread count, so
@@ -112,7 +117,6 @@ untrained model is the simple scorer.
     triad/statistics.py   paired tests and Holm correction
     triad/__main__.py     train, test and baselines commands
     analysis/             parameter readings, knock-outs, results tables and figures
-    paper/                the paper (its method and results sections still describe the original TRIAD; being updated)
+    paper_v2/             the paper (paper/ holds an earlier draft)
     tests/                checks of the model, training and metrics
 
-Earlier versions of the model, their documents and experiments are on the branch `archive/original-triad`.

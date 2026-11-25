@@ -1,5 +1,5 @@
 % TRIAD architecture. Build: pdflatex architecture.tex && pdftoppm -png -r 220 -singlefile architecture.pdf architecture
-\documentclass[tikz,border=8pt]{standalone}
+\documentclass[tikz,border=6pt]{standalone}
 \usepackage{amsmath,amssymb}
 \usepackage{fontawesome5}
 \usetikzlibrary{arrows.meta,calc}
@@ -9,148 +9,178 @@
 \newcommand{\fire}{{\color{trline}\faFire}}
 \newcommand{\snow}{{\color{fzline}\faSnowflake}}
 \tikzset{
-  arr/.style={-{Stealth[length=2.4mm]},line width=0.7pt,draw=black!70},
-  bus/.style={line width=0.9pt,draw=black!70},
+  arr/.style={-{Stealth[length=2.3mm]},line width=0.75pt,draw=black!65},
+  bus/.style={line width=0.9pt,draw=black!65},
   frozen/.style={draw=fzline,fill=fzfill,line width=0.8pt,rounded corners=1.5pt},
-  train/.style={draw=trline,fill=trfill,line width=0.9pt,rounded corners=3pt},
+  fzbox/.style={draw=fzline,fill=fzfill,line width=0.8pt,rounded corners=2pt,font=\small,align=center,inner sep=3pt},
+  train/.style={draw=trline,fill=trfill,line width=0.9pt,rounded corners=3pt,align=center,inner sep=3pt},
   tower/.style={draw=black!35,fill=black!2,line width=0.8pt,rounded corners=8pt},
+  ttl/.style={font=\bfseries,anchor=north west},
   lab/.style={font=\small},
   tiny/.style={font=\scriptsize},
   op/.style={circle,draw=black!70,line width=0.8pt,minimum size=6mm,inner sep=0pt,fill=white},
+  img/.style={draw=black!25,inner sep=0pt},
 }
-% a horizontal score vector over the catalogue, one shaded cell per item: centre x, y, colour
+% a horizontal score vector over the catalogue: centre x, bottom y, colour
 \newcommand{\scorebar}[3]{%
   \foreach \v [count=\i] in {25,70,15,85,40,55,10,95,35,20,65,45}{
     \fill[#3!\v!white] ($(#1,#2)+({(\i-7)*0.24},0)$) rectangle ++(0.24,0.32);}
   \draw[black!60,line width=0.5pt] ($(#1,#2)+(-1.44,0)$) rectangle ++(2.88,0.32);}
-\newcommand{\mat}[5]{\draw[#5] (#1,#2) rectangle ++(#3,#4);}  % x, y, width, height, style
+\newcommand{\curvebox}[3]{% centre x, centre y, name
+  \node[train,minimum width=1.15cm,minimum height=0.75cm] (#3) at (#1,#2) {};
+  \draw[trline,line width=1pt] plot[smooth] coordinates {($(#1,#2)+(-0.42,-0.18)$) ($(#1,#2)+(-0.2,0.22)$) ($(#1,#2)+(0.08,-0.05)$) ($(#1,#2)+(0.42,0.12)$)};}
 
 \begin{document}
 \begin{tikzpicture}[x=1cm,y=1cm]
 
-% ============================================================ INPUTS (bottom)
-\fill[black!12] (0.9,0) rectangle ++(0.5,1.7);\draw[black!55] (0.9,0) rectangle ++(0.5,1.7);
-\foreach \y in {0.2,0.5,...,1.5}{\draw[black!30] (0.9,\y) -- ++(0.5,0);}
-\node[lab,below] at (1.15,-0.05) {item features};
-\foreach \r/\c in {0/2,1/0,2/3,3/1,4/2,5/0}{\fill[black!55] (7.0+0.22*\c,1.5-0.26*\r) rectangle ++(0.2,0.2);}
-\draw[black!55] (6.98,-0.05) rectangle (7.88,1.72);
-\node[lab,below] at (7.43,-0.05) {labels $\Gamma_l$};
-\foreach \row/\len in {0/4,1/3,2/5,3/2}{\foreach \k in {1,...,\len}{\fill[black!45] (12.4+0.3*\k,1.4-0.4*\row) rectangle ++(0.24,0.24);}}
-\node[lab,below] at (13.4,-0.05) {training bundles};
-\foreach \k/\c in {0/cC,1/cL,2/cG}{\fill[\c!70] (16.33+0.36*\k,0.6) rectangle ++(0.3,0.3);}
-\draw[black!55,rounded corners=2pt] (16.23,0.5) rectangle (17.43,1.0);
-\node[lab,below] at (16.83,-0.05) {seeds $S$};
+% =================================================================== INPUTS (bottom row)
+% every catalogue item: image, audio, title
+\node[inner sep=0pt] at (0.55,1.35) {\includegraphics[width=0.85cm]{pog/outfit_dress.png}};
+\node[inner sep=0pt] at (1.45,1.35) {\includegraphics[width=0.85cm]{pog/outfit_boots.png}};
+\node[inner sep=0pt] at (2.35,1.35) {\includegraphics[width=0.85cm]{pog/outfit_beret.png}};
+\node[lab] at (1.45,0.55) {images};
+\node[font=\LARGE] at (3.55,1.35) {\faMusic};\node[lab] at (3.55,0.55) {audio};
+\node[font=\LARGE] at (5.55,1.35) {\faAlignLeft};\node[lab] at (5.55,0.55) {titles};
+\draw[black!45] (0.1,0.25) -- (6.4,0.25);
+\node[lab,text=black!70] at (3.25,-0.05) {content of every catalogue item};
+% labels
+\foreach \r/\c in {0/2,1/0,2/3,3/1,4/2}{\fill[black!55] (7.0+0.22*\c,1.75-0.26*\r) rectangle ++(0.2,0.2);}
+\draw[black!55] (6.98,0.7) rectangle (7.88,2.0);
+\node[lab] at (7.43,0.4) {labels $\Gamma_l$};
+% training bundles
+\foreach \row/\len in {0/4,1/3,2/5,3/2}{\foreach \k in {1,...,\len}{\fill[black!45] (12.25+0.3*\k,1.85-0.36*\row) rectangle ++(0.24,0.24);}}
+\node[lab] at (13.15,0.4) {training bundles};
+% the query: partial bundle
+\draw[black!60,rounded corners=4pt,line width=0.9pt] (15.75,0.7) rectangle (18.15,2.3);
+\node[inner sep=0pt] at (16.4,1.5) {\includegraphics[width=1.25cm]{pog/outfit_dress.png}};
+\node[inner sep=0pt] at (17.5,1.5) {\includegraphics[width=1.25cm]{pog/outfit_bag.png}};
+\node[lab] at (16.95,0.4) {query: partial bundle $S$};
 
-% ============================================================ FROZEN DATA
-\draw[fzline!70,dashed,fill=fzfill!45,rounded corners=6pt,line width=0.8pt] (0.3,2.35) rectangle (15.4,5.45);
-\node[anchor=north west,font=\small\bfseries,text=fzline] at (0.4,5.4) {\snow\ \ frozen};
+% =================================================================== PRETRAINED ENCODERS
+\draw[fzline!70,dashed,fill=fzfill!30,rounded corners=5pt,line width=0.8pt] (0.05,2.3) rectangle (6.45,4.55);
+\node[anchor=north west,font=\scriptsize\bfseries,text=fzline,inner sep=1pt] at (0.12,4.52) {\snow\ pretrained encoders};
+\node[fzbox,minimum width=1.45cm,font=\scriptsize] (eI) at (1.45,2.85) {BLIP\\image encoder};
+\node[fzbox,minimum width=1.45cm,font=\scriptsize] (eA) at (3.55,2.85) {CLAP\\audio encoder};
+\node[fzbox,minimum width=1.45cm,font=\scriptsize] (eT) at (5.55,2.85) {BLIP/CLAP\\text encoder};
+\node[fzbox,minimum width=6.0cm] (svd) at (3.25,3.85) {concatenate, truncated SVD to 128 dimensions};
+\draw[arr] (1.45,1.85) -- (eI);\draw[arr] (3.55,1.85) -- (eA);\draw[arr] (5.55,1.85) -- (eT);
+\draw[arr] (eI) -- (eI|-svd.south);\draw[arr] (eA) -- (eA|-svd.south);\draw[arr] (eT) -- (eT|-svd.south);
+
+% =================================================================== FROZEN DATA
+\draw[fzline!70,dashed,fill=fzfill!45,rounded corners=6pt,line width=0.8pt] (0.3,4.85) rectangle (15.35,6.45);
+\node[font=\small\bfseries,text=fzline] at (5.45,5.6) {\snow\ frozen};
 % X, H
-\mat{0.9}{2.65}{0.5}{1.6}{frozen}\node[lab] at (1.15,3.45) {$X$};
-\mat{2.9}{2.65}{0.5}{1.6}{frozen}\node[lab] at (3.15,3.45) {$H$};
-\node[tiny,anchor=west] at (3.5,3.0) {$D^{-1}NX$};
-\draw[arr] (1.4,3.45) -- (2.85,3.45);
-% label lookups g_l(c), n_g
-\mat{6.9}{2.9}{1.1}{0.9}{frozen}
-\node[lab] at (7.45,3.35) {$g_l,\ n_g$};
-\node[tiny,anchor=west] at (8.1,3.0) {label of each item, items per label};
+\draw[frozen] (0.9,5.05) rectangle ++(0.5,1.0);\node[lab] at (1.15,5.55) {$X$};
+\draw[frozen] (2.9,5.05) rectangle ++(0.5,1.0);\node[lab] at (3.15,5.55) {$H$};
+\node[tiny,anchor=west] at (3.45,5.85) {$D^{-1}NX$};
+\draw[arr] (1.4,5.55) -- (2.85,5.55);
+\draw[arr] (1.15,4.15) -- (1.15,5.0);
+% label lookups
+\draw[frozen] (6.9,5.2) rectangle ++(1.1,0.7);\node[lab] at (7.45,5.55) {$g_l,\ n_g$};
+\node[tiny,anchor=west,align=left] at (8.1,5.55) {label of each item,\\items per label};
+\draw[arr] (7.43,2.05) -- (7.43,5.15);
 % N, deg, f
-\mat{12.5}{2.6}{1.8}{1.8}{frozen}
-\foreach \x/\y in {0.2/1.5,0.5/0.3,0.9/1.1,1.3/0.6,0.3/0.8,1.6/1.6,1.1/0.2,0.7/1.6,1.5/1.0,0.15/0.15}{\fill[fzline] (12.5+\x,2.6+\y) circle (1.6pt);}
-\node[lab,anchor=west] at (14.4,3.95) {$N$};
-\mat{14.4}{2.9}{0.75}{0.22}{frozen}\node[tiny,anchor=north] at (14.78,2.85) {$\deg, f$};
-% how they are built
-\draw[arr] (1.15,1.75) -- (1.15,2.6);
-\draw[arr] (7.43,1.78) -- (7.43,2.85);
-\draw[arr] (13.4,1.75) -- (13.4,2.55);
-\draw[arr,rounded corners=4pt] (12.45,4.0) -- (12.0,4.0) -- (12.0,4.95) -- (3.85,4.95) -- (3.85,3.9) -- (3.45,3.9);
+\draw[frozen] (12.3,5.0) rectangle ++(1.15,1.15);
+\foreach \x/\y in {0.15/0.95,0.4/0.25,0.65/0.75,0.9/0.4,0.25/0.55,1.0/1.0,0.75/0.15,0.5/1.0,0.95/0.7,0.1/0.1}{\fill[fzline] (12.3+\x,5.0+\y) circle (1.5pt);}
+\node[lab,anchor=east] at (12.25,5.9) {$N$};
+\draw[frozen] (13.7,5.15) rectangle ++(0.6,0.2);\node[tiny,anchor=west] at (14.35,5.25) {$\deg$};
+\draw[frozen] (13.7,5.6) rectangle ++(0.6,0.2);\node[tiny,anchor=west] at (14.35,5.7) {$f$};
+\draw[arr] (13.0,2.15) -- (13.0,4.95);
+% N -> H (partner histories)
+\draw[arr,rounded corners=3pt] (12.25,5.2) -- (11.9,5.2) -- (11.9,4.98) -- (3.75,4.98) -- (3.75,5.3) -- (3.45,5.3);
 
-% ============================================================ SEED BUS
-\draw[bus] (16.83,1.05) -- (16.83,5.95) -- (0.5,5.95);
-\node[lab,anchor=west] at (16.9,5.6) {$S$};
+% =================================================================== SEED BUS
+\draw[bus] (16.95,2.3) -- (16.95,6.75) -- (0.6,6.75);
+\node[lab,anchor=west] at (17.05,4.4) {$S$};
 
-% ============================================================ TOWERS
+% =================================================================== TOWERS
 \foreach \x/\c/\t in {2.7/cC/content,7.7/cL/labels,12.7/cG/graph}{
-  \draw[tower] (\x-2.3,6.35) rectangle (\x+2.3,12.85);
-  \node[font=\bfseries,text=\c] at (\x,12.5) {\t};}
-\node[tiny,text=cL] at (7.7,12.15) {one per level $l$};
-\draw[tower] (15.65,6.35) rectangle (18.0,12.85);\node[font=\bfseries] at (16.83,12.5) {gate};
+  \draw[tower] (\x-2.3,7.1) rectangle (\x+2.3,12.4);
+  \node[ttl,text=\c] at (\x-2.2,12.3) {\t};}
+\node[tiny,text=cL,anchor=west] at (5.5,11.74) {one per level $l$};
+\draw[tower] (15.55,7.1) rectangle (18.35,12.4);\node[ttl] at (15.65,12.3) {gate};
 
-% ---------------- content
-\draw[arr] (1.15,4.3) -- (1.15,6.85);                       % X
-\draw[arr] (3.15,4.3) -- (3.15,8.2) -- (3.0,8.2);           % H
-\draw[arr] (4.6,5.95) -- (4.6,10.75) -- (3.85,10.75);       % S
-\node[train,minimum width=1.25cm,minimum height=0.6cm] (mlp) at (1.2,7.15) {\fire\ MLP};
-\draw[black!55,fill=black!10] (2.45,7.95) rectangle ++(0.22,0.5);\draw[frozen] (2.73,7.95) rectangle ++(0.22,0.5);
-\node[tiny] at (2.56,7.75) {$z$};\node[tiny] at (2.84,7.75) {$h$};
-\draw[arr] (1.15,7.45) -- (1.15,8.2) -- (2.4,8.2);
-\draw[train] (1.15,8.85) rectangle ++(1.1,1.1);\draw[train] (3.15,8.85) rectangle ++(1.1,1.1);
-\node at (1.7,9.5) {$A$};\node at (3.7,9.5) {$B$};
-\node[tiny] at (1.7,9.08) {\fire\,query};\node[tiny] at (3.7,9.08) {\fire\,key};
-\draw[arr] (2.6,8.5) -- (1.85,8.85);\draw[arr] (2.8,8.5) -- (3.55,8.85);
-\node[lab] (cf) at (2.7,10.75) {$\varphi(S)^{\!\top}\mathrm{key}(c)$};
-\draw[arr] (1.7,9.95) -- (2.3,10.5);\draw[arr] (3.7,9.95) -- (3.1,10.5);
-\scorebar{2.7}{11.35}{cC}\node[lab,anchor=east] at (1.2,11.51) {$C$};
-\draw[arr] (2.7,11.0) -- (2.7,11.32);
+% ------------------------------------------------------------- content
+\draw[arr] (1.15,6.1) -- (1.15,7.45);                                  % X
+\node[train,minimum width=1.2cm] (phiz) at (1.15,7.75) {\fire\ $\phi_z$};
+\draw[black!55,fill=black!10] (2.45,8.3) rectangle ++(0.22,0.5);\draw[frozen] (2.73,8.3) rectangle ++(0.22,0.5);
+\node[tiny] at (2.56,8.12) {$z$};\node[tiny] at (2.84,8.12) {$h$};
+\draw[arr] (phiz.north) |- (2.4,8.55);
+\draw[arr] (3.15,6.1) -- (3.15,8.25) -- (2.98,8.25);                     % H
+\node[train,minimum width=1.05cm,minimum height=0.9cm] (A) at (1.6,9.55) {$A$\\[-2pt]\tiny\fire\,seeds};
+\node[train,minimum width=1.05cm,minimum height=0.9cm] (B) at (3.8,9.55) {$B$\\[-2pt]\tiny\fire\,candidate};
+\draw[arr] (2.6,8.85) -- (A);\draw[arr] (2.8,8.85) -- (B);
+\node[lab] (cf) at (2.7,10.65) {$\bar q^{\!\top}k_c$};
+\draw[arr] (A) -- (cf);\draw[arr] (B) -- (cf);
+\draw[arr] (0.6,6.75) |- (A.west);                                     % seeds S
+\node[tiny,anchor=south] at (0.62,9.6) {$S$};
+\scorebar{2.7}{11.3}{cC}\node[lab,anchor=east,text=cC] at (1.2,11.46) {$C$};
+\draw[arr] (cf) -- (2.7,11.27);
 
-% ---------------- labels: same-label score
-\draw[arr] (5.65,5.95) -- (5.65,7.65) -- (6.92,7.65);        % S
-\draw[arr] (7.45,3.85) -- (7.45,7.17);                      % g_l, n_g
-\node[train,minimum width=1.5cm,minimum height=0.9cm] at (7.7,7.65) {\fire\ MLP $\delta_l$};
-\node[tiny,text=black!65] at (6.45,9.75) {same label:};
-\node[tiny] at (6.45,9.42) {$\delta_l(m,\lvert S\rvert,n_g)$};
-\node[tiny,text=black!65] at (6.45,9.1) {when $m>0$};
-\draw[arr] (7.7,8.13) -- (7.7,10.45);
-\node[lab] at (7.7,10.75) {$L_l(S,c)$};
-\scorebar{7.7}{11.35}{cL}\node[lab,anchor=east] at (6.2,11.51) {$L_l$};
-\draw[arr] (7.7,11.0) -- (7.7,11.32);
+% ------------------------------------------------------------- labels
+\draw[arr] (7.43,6.0) -- (7.43,7.55);                                  % g_l, n_g
+\draw[arr] (6.2,6.75) -- (6.2,7.9) -- (6.85,7.9);                       % S
+\node[fzbox,text width=3.0cm,font=\scriptsize] (m) at (7.95,7.95) {$m$: seeds whose label is $g_l(c)$};
+\foreach \k in {0,1,2}{\draw[black!55,fill=cL!20] (7.1+0.4*\k,8.75) rectangle ++(0.35,0.3);}
+\node[tiny,anchor=west] at (8.35,8.9) {$m,\ |S|,\ n_g$};
+\draw[arr] (m) -- (7.65,8.72);
+\curvebox{7.7}{9.85}{delta}
+\node[lab,anchor=west] at (8.35,9.85) {\fire\ $\delta_l$};
+\draw[arr] (7.7,9.08) -- (delta);
+\node[lab] (Ll) at (7.7,10.75) {$L_l=\delta_l(\cdot)$ if $m>0$, else 0};
+\draw[arr] (delta) -- (Ll);
+\scorebar{7.7}{11.3}{cL}\node[lab,anchor=east,text=cL] at (6.2,11.46) {$L_l$};
+\draw[arr] (Ll) -- (7.7,11.27);
 
-% ---------------- graph
-\draw[arr] (11.0,5.95) -- (11.0,6.85);                      % S
-\draw[arr] (13.4,4.45) -- (13.4,6.85);                      % N
-\node[train,minimum width=3.1cm,minimum height=0.8cm] (deg) at (12.6,7.25) {$N_{sc}\,\deg_s^{-\alpha}\,\deg_c^{-\beta}$};
-\node[tiny,anchor=west] at (14.2,7.25) {\fire\,$\alpha,\beta$};
-\node[train,minimum width=2.3cm,minimum height=0.65cm] (damp) at (12.2,8.6) {$\theta\log\!\big(1{+}\textstyle\sum_s\big)$};
-\node[tiny,anchor=west] at (13.4,8.6) {\fire\,$\theta$};
-\draw[arr] (12.2,7.65) -- (damp);
-\draw[train] (13.75,9.25) rectangle ++(1.1,0.8);
-\draw[trline,line width=1pt] plot[smooth] coordinates {(13.85,9.4) (14.05,9.9) (14.35,9.6) (14.75,9.8)};
-\node[tiny,anchor=north] at (14.3,9.22) {\fire\ $\rho(f_c)$};
-\node[op] (gplus) at (12.7,10.45) {$+$};
-\draw[arr] (damp) -- (gplus);\draw[arr] (13.75,9.8) -- (gplus);
-\scorebar{12.7}{11.35}{cG}\node[lab,anchor=east] at (11.2,11.51) {$G$};
-\draw[arr] (gplus) -- (12.7,11.32);
+% ------------------------------------------------------------- graph
+\draw[arr] (12.55,6.2) -- (12.55,7.75);                                % N, deg
+\draw[arr] (11.2,6.75) -- (11.2,7.75);                                 % S
+\node[train,text width=3.6cm] (dsum) at (12.6,8.2) {$\sum_{s\in S}N_{sc}\,\deg_s^{-\alpha}\deg_c^{-\beta}$\\[-1pt]\scriptsize \fire\,$\alpha,\beta$};
+\node[train,font=\small] (dlog) at (12.0,9.45) {\fire\ $\theta\log(1+\cdot)$};
+\draw[arr] (12.0,8.68) -- (dlog);
+\curvebox{14.3}{10.15}{rho}
+\node[tiny,anchor=north] at (14.3,9.75) {\fire\,$\rho(f_c)$};
+\draw[arr] (13.85,5.8) -- (13.85,6.28) -- (15.2,6.28) -- (15.2,10.15) -- (rho.east);   % f to rho
+\node[op] (gp) at (12.7,10.55) {$+$};
+\draw[arr] (dlog.north) -- (gp);\draw[arr] (rho.west) -- (gp);
+\scorebar{12.7}{11.3}{cG}\node[lab,anchor=east,text=cG] at (11.2,11.46) {$G$};
+\draw[arr] (gp) -- (12.7,11.27);
 
-% ---------------- gate
-\foreach \k in {0,1,2}{\draw[black!55,fill=black!10] (16.45+0.25*\k,6.75) rectangle ++(0.2,0.2);}
-\node[tiny,anchor=east] at (16.4,6.85) {$u(S)$};
-\draw[arr] (16.83,5.95) -- (16.83,6.7);
-\node[train,minimum width=1.5cm,minimum height=1.2cm,align=center] (gmlp) at (16.83,8.3) {\fire\\[-1pt]MLP};
-\draw[arr] (16.83,7.0) -- (gmlp);
-\foreach \k/\c in {0/cC,1/cL,2/cG}{\fill[\c!75] (16.33+0.35*\k,9.9) rectangle ++(0.3,0.5);}
-\node[tiny,anchor=west] at (17.4,10.15) {$w$};
-\draw[arr] (gmlp) -- (16.83,9.85);
+% ------------------------------------------------------------- gate
+\foreach \k in {0,1,2}{\draw[black!55,fill=black!10] (16.55+0.3*\k,8.2) rectangle ++(0.25,0.25);}
+\node[tiny,anchor=north,align=center] at (16.95,8.12) {$|S|$, seeds' $f$,\\share never\\bundled};
+\draw[arr] (16.95,6.75) -- (17.95,6.75) -- (17.95,8.32) -- (17.45,8.32);  % S
+\draw[arr] (14.15,5.8) -- (14.15,6.03) -- (15.85,6.03) -- (15.85,8.32) -- (16.5,8.32);  % f to gate
+\node[train,minimum width=1.4cm,minimum height=1.0cm] (phiw) at (16.95,9.6) {\fire\\[-1pt]$\phi_w$};
+\draw[arr] (16.95,8.5) -- (phiw);
+\foreach \k/\c in {0/cC,1/cL,2/cG}{\fill[\c!75] (16.5+0.33*\k,10.4) rectangle ++(0.28,0.5);}
+\node[tiny,anchor=west] at (17.5,10.65) {$w$};
+\draw[arr] (phiw) -- (16.95,10.35);
 
-% ============================================================ WEIGHTED SUM
-\draw[bus] (16.83,10.45) -- (16.83,13.5) -- (2.7,13.5);
-\node[tiny,anchor=west] at (16.9,13.1) {$w(S)$};
-\foreach \x in {2.7,7.7,12.7}{\node[op] at (\x,13.5) {$\times$};\draw[arr] (\x,11.72) -- (\x,13.18);}
-\node[op,minimum size=8mm,font=\large] (sum) at (7.7,14.7) {$+$};
-\draw[arr] (2.7,13.82) -- (2.7,14.7) -- (sum);\draw[arr] (7.7,13.82) -- (sum);\draw[arr] (12.7,13.82) -- (12.7,14.7) -- (sum);
+% =================================================================== WEIGHTS, SUM
+\foreach \x in {2.7,7.7,12.7}{\node[op] at (\x,12.75) {$\times$};\draw[arr] (\x,11.66) -- (\x,12.43);}
+\draw[bus] (16.95,10.95) -- (16.95,12.75) -- (13.02,12.75);
+\draw[bus] (12.38,12.75) -- (8.02,12.75);\draw[bus] (7.38,12.75) -- (3.02,12.75);
+\node[tiny,anchor=west] at (17.05,12.75) {$w(S)$};
+\node[op,minimum size=8mm,font=\large] (tot) at (7.7,13.85) {$+$};
+\draw[arr] (2.7,13.07) -- (2.7,13.85) -- (tot);\draw[arr] (7.7,13.07) -- (tot);\draw[arr] (12.7,13.07) -- (12.7,13.85) -- (tot);
 
-% ============================================================ SCORE AND OUTPUT
-\begin{scope}
-\foreach \v [count=\i] in {25,70,15,85,40,55,10,95,35,20,65,45,30,75,50,12}{\fill[cS!\v!white] ({5.3+(\i-1)*0.3},15.6) rectangle ++(0.3,0.34);}
-\draw[black!60,line width=0.5pt] (5.3,15.6) rectangle ++(4.8,0.34);
-\end{scope}
-\node[lab,anchor=west] at (10.2,15.77) {$s(c\mid S)$, \ all $n$ items};
-\draw[arr] (sum) -- (7.7,15.55);
-\draw[arr] (7.0,16.0) -- (6.1,16.6);\draw[arr] (8.4,16.0) -- (9.3,16.6);
-\node[draw=black!60,rounded corners=3pt,lab,minimum width=2.4cm] at (5.7,16.95) {top 20};
-\node[draw=black!60,rounded corners=3pt,lab,minimum width=2.4cm] at (9.7,16.95) {softmax loss};
-\node[tiny,text=black!60] at (5.7,17.45) {evaluation};\node[tiny,text=black!60] at (9.7,17.45) {training};
+% =================================================================== SCORE AND OUTPUT
+\foreach \v [count=\i] in {25,70,15,85,40,55,10,95,35,20,65,45,30,75,50,12}{\fill[cS!\v!white] ({5.3+(\i-1)*0.3},14.75) rectangle ++(0.3,0.34);}
+\draw[black!60,line width=0.5pt] (5.3,14.75) rectangle ++(4.8,0.34);
+\node[lab,anchor=west] at (10.2,14.92) {$s(c\mid S)$, \ all $n$ items};
+\draw[arr] (tot) -- (7.7,14.7);
+\draw[arr] (7.0,15.15) -- (6.1,15.7);\draw[arr] (8.4,15.15) -- (9.3,15.7);
+\node[draw=black!60,rounded corners=3pt,lab,minimum width=2.4cm] (top) at (5.7,16.05) {top 20};
+\node[draw=black!60,rounded corners=3pt,lab,minimum width=2.4cm] at (9.7,16.05) {softmax loss};
+\node[tiny,text=black!60] at (5.7,16.55) {evaluation};\node[tiny,text=black!60] at (9.7,16.55) {training};
+% the missing items of the query's outfit, which the top 20 should contain
+\node[inner sep=0pt] (miss) at (1.95,16.05) {\includegraphics[width=1.1cm]{pog/outfit_boots.png}\hspace{3mm}\includegraphics[width=1.1cm]{pog/outfit_beret.png}};
+\node[lab,anchor=north] at (miss.south) {missing items};
+\draw[arr] (top.west) -- (miss.east);
 
-% ============================================================ LEGEND
-\node[anchor=west,lab] at (13.2,17.15) {\fire\ \ trainable, 74{,}136 parameters};
-\node[anchor=west,lab] at (13.2,16.6) {\snow\ \ frozen, computed from data};
+% =================================================================== LEGEND
+\node[anchor=west,lab] at (2.0,-0.75) {\fire\ \ trained, shared by all items (74{,}136 parameters)};
+\node[anchor=west,lab] at (11.0,-0.75) {\snow\ \ frozen: from data or pretrained};
 \end{tikzpicture}
 \end{document}
